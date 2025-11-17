@@ -98,6 +98,26 @@
 
     animation: rainbowScroll 6s linear infinite;
   }
+  .emp-score {
+    font-size: 42px;
+    font-weight: 900;
+    margin: 10px 0 10px 0;
+    background: linear-gradient(
+      90deg,
+      red,
+      orange,
+      yellow,
+      green,
+      cyan,
+      blue,
+      violet,
+      red
+    );
+    background-size: 400%;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: rainbowScroll 6s linear infinite;
+  }
 
   @keyframes rainbowScroll {
     0% {
@@ -267,7 +287,7 @@
   <h1 id="emperorName" class="emp-name">—</h1>
 
   <h2 class="emp-line">With A Score Of:</h2>
-  <h2 id="emperorScore" class="emp-line">—</h2>
+  <h1 id="emperorScore" class="emp-score">—</h1>
 
   <button id="playBtn">Play</button>
 </div>
@@ -425,7 +445,7 @@ function showEmperor() {
 
   if (top) {
     emperorName.textContent = top.playerName;
-    emperorScore.textContent = top.questionsAnswered;
+    emperorScore.textContent = `${top.questionsAnswered} Correct`;
   }
 
   emperorScreen.style.display = "block";
