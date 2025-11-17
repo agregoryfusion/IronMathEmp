@@ -271,7 +271,7 @@
 
 <body>
 <h1>Fusion Fast Math</h1>
-<p id="version">v1.0.30</p>
+<p id="version">v1.0.31</p>
 
 <!-- LOGIN -->
 <div id="login-screen">
@@ -395,6 +395,7 @@ const lbBody = document.querySelector("#leaderboardContainer tbody");
 /* ======================= LEADERBOARD CACHE ======================= */
 
 let cachedLeaderboardData = null;
+let cachedEmperorData = null;
 let lastLeaderboardFetchTime = 0;
 const CACHE_TIME = 60000;
 
@@ -435,13 +436,13 @@ async function loadLeaderboardAtStartup() {
   });
 
   // 🔥 Emperor = STUDENTS only
-  cachedLeaderboardData = best.filter(d => d.isStudent === true);
-
+  cachedLeaderboardData = best;            // keep full leaderboard
+  cachedEmperorData = best.filter(d => d.isStudent === true);  // students only
   lastLeaderboardFetchTime = now;
 }
 
 function showEmperor() {
-  const top = cachedLeaderboardData?.[0];
+  const top = cachedEmperorData?.[0];
 
   if (top) {
     emperorName.textContent = top.playerName;
