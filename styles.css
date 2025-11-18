@@ -1,0 +1,239 @@
+/* Core theme */
+:root{
+  --bg:#0e0f12; --text:#ffffff; --muted:#a8b0bb; --accent:#1e90ff; --accent2:#00bfff; --panel:#161a20; --input:#15181d;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial;
+  text-align:center
+}
+h1{margin:18px 0 6px;color:var(--accent)}
+#version {
+  color: var(--accent);
+  font-size: 0.75em;
+  margin-top: -6px;
+}
+
+/* LOGIN */
+#login-screen{
+  min-height:40vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:10px
+}
+#loginBtn{
+  background:#0078d4;
+  border:none;
+  color:#fff;
+  border-radius:8px;
+  padding:12px 20px;
+  font-size:16px;
+  cursor:pointer
+}
+#loginBtn:hover{background:#005ea6}
+#loginStatus{color:#ff8a8a;font-size:13px}
+
+/* EMPEROR SCREEN */
+#emperor-screen{
+  display:none;
+  min-height:50vh;
+  padding-top:40px;
+}
+.emp-line{
+  font-size:28px;
+  font-weight:600;
+  margin:8px 0;
+}
+.emp-name{
+  font-size:42px;
+  font-weight:900;
+  margin:12px 0 22px 0;
+  background:linear-gradient(
+    90deg,
+    red,
+    orange,
+    yellow,
+    green,
+    cyan,
+    blue,
+    violet,
+    red
+  );
+  background-size:400%;
+  -webkit-background-clip:text;
+  color:transparent;
+  animation:rainbowScroll 6s linear infinite;
+}
+.emp-score{
+  font-size:42px;
+  font-weight:900;
+  margin:10px 0 10px 0;
+  background:linear-gradient(
+    90deg,
+    red,
+    orange,
+    yellow,
+    green,
+    cyan,
+    blue,
+    violet,
+    red
+  );
+  background-size:400%;
+  -webkit-background-clip:text;
+  color:transparent;
+  animation:rainbowScroll 6s linear infinite;
+}
+@keyframes rainbowScroll{
+  0%{background-position:0%}
+  100%{background-position:400%}
+}
+#playBtn{
+  margin-top:25px;
+  background:var(--accent);
+  padding:14px 24px;
+  border:none;
+  border-radius:10px;
+  color:white;
+  font-size:20px;
+  cursor:pointer;
+}
+#playBtn:hover{
+  filter:brightness(1.1);
+}
+
+/* GAME */
+#game-container{
+  display:none;
+  max-width:900px;
+  margin:0 auto;
+  padding:10px 16px
+}
+#question{
+  font-size:48px;
+  font-weight:700;
+  margin-top:80px;
+  margin-bottom:30px;
+  min-height:1.2em;
+  transition:transform .05s
+}
+#timerBar{
+  width:70%;
+  height:30px;
+  background:#20242b;
+  border-radius:15px;
+  margin:30px auto 30px;
+  overflow:hidden;
+  box-shadow:0 0 10px #1e90ff55
+}
+#timerFill{
+  height:100%;
+  background:linear-gradient(90deg, var(--accent), var(--accent2));
+  width:100%
+}
+#answer{
+  font-size:32px;
+  padding:10px;
+  border-radius:10px;
+  border:2px solid var(--accent);
+  width:140px;
+  background:var(--input);
+  color:#fff;
+  text-align:center;
+  outline:none;
+  box-shadow:0 0 10px #1e90ff33;
+  margin-bottom:16px
+}
+#answer:focus{
+  border-color:var(--accent2);
+  box-shadow:0 0 15px #00bfff55
+}
+#stage-info{
+  margin-top:6px;
+  font-size:18px;
+  color:#c9d2db
+}
+
+/* END SCREEN */
+#end-screen{
+  display:none;
+  text-align:center;
+  margin-top:60px;
+  color:#fff
+}
+#end-screen h3{
+  color:#ff4d4d;
+  font-size:28px;
+  margin:4px 0 10px
+}
+#end-screen p{
+  margin:6px 0;
+  font-size:18px
+}
+#end-screen button{
+  background:var(--accent);
+  border:none;
+  color:#fff;
+  padding:10px 20px;
+  font-size:16px;
+  border-radius:8px;
+  margin:10px;
+  cursor:pointer;
+  transition:filter .2s
+}
+#end-screen button:hover{filter:brightness(1.05)}
+#session-id{color:#99a6b4;font-size:14px}
+#saved-status{color:#7fdca2;font-size:14px}
+
+/* LEADERBOARD */
+#leaderboardContainer{
+  display:none;
+  margin:40px auto 20px;
+  max-width:800px;
+  text-align:center;
+  opacity:0;
+  transition:opacity .3s
+}
+#leaderboardContainer.show{opacity:1}
+#leaderboardStatus{color:#cfd6de;font-size:14px}
+#leaderboardContainer table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:12px
+}
+#leaderboardContainer th,#leaderboardContainer td{
+  padding:10px;
+  border-bottom:1px solid #2a2f37;
+  text-align:center
+}
+#leaderboardContainer th{
+  color:var(--accent);
+  font-weight:600;
+  border-bottom:2px solid #1e90ff33
+}
+#leaderboardContainer td{color:#e6e9ee}
+#leaderboardContainer tr:hover td{background:#1e90ff22}
+
+#leaderboardButtons{
+  margin-top:10px;
+  display:flex;
+  justify-content:center;
+  gap:8px;
+}
+#leaderboardButtons button{
+  background:var(--accent);
+  border:none;
+  color:#fff;
+  padding:6px 14px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:14px;
+}
+#leaderboardButtons button:hover{
+  filter:brightness(1.05);
+}
