@@ -80,8 +80,16 @@ function choosePair(pairs){
     if(bestIdx!==-1) break;
     recentAnswers.shift();
   }
-  const [a,b]=pairs[bestIdx];
-  return {a,b,prod:a*b};
+let [a, b] = pairs[bestIdx];
+
+// 50% chance to swap A and B
+if (Math.random() < 0.5) {
+  const tmp = a;
+  a = b;
+  b = tmp;
+}
+
+return { a, b, prod: a * b };
 }
 
 function decayWeightsAndBump(prod){
