@@ -181,6 +181,7 @@ function nextQuestion(){
       const trueT = (performance.now() - qStartTs) / 1000;
       totalTimeTrue += trueT;
       runData.results.push({
+        questionNumber: correctCount + 1,  // ⭐ NEW
         a: current.a,
         b: current.b,
         stage,
@@ -237,6 +238,7 @@ function nextQuestion(){
 
       if (remaining <= 0) {
         runData.results.push({
+          questionNumber: correctCount + 1,  // ⭐ NEW
           a: current.a,
           b: current.b,
           stage,
@@ -310,6 +312,7 @@ async function uploadSession(totalTrue){
 
     const questionsPayload = runData.results.map(q => ({
       session_id: sessionNumericId,
+      question_number: q.questionNumber,       // ⭐ NEW
       a: q.a,
       b: q.b,
       time_taken: q.timeTaken,
