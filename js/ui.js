@@ -47,3 +47,7 @@ function highlightScopeButton(scope) {
   if (scope === "students") viewStudentsBtn.classList.add("active");
   if (scope === "teachers") viewTeachersBtn.classList.add("active");
 }
+
+// Ensure the "Everyone" button glows by default on load
+// (call after highlightScopeButton is declared)
+highlightScopeButton(currentScope);

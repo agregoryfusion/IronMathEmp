@@ -370,11 +370,8 @@ async function uploadSession(totalTrue){
 if (restartBtn) {
   restartBtn.addEventListener("click", ()=>{
     if (endScreen) endScreen.style.display = "none";
-    if (FM.ui && typeof FM.ui.showEmperor === "function") {
-      backend.fetchAndCacheLeaderboard(true).then(()=>{
-        FM.ui.showEmperor();
-      });
-    }
+    // Directly start a new game (Play Again)
+    startGame();
   });
 }
 
