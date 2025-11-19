@@ -377,7 +377,6 @@ async function uploadSession(totalTrue){
       await backend.insertLeaderboardRow({
         user_id: window.currentUserId || null,
         player_name: playerName,
-        month_key: new Date().toISOString().slice(0,7),
         stage_reached: stage,
         questions_answered: correctCount,
         total_time_seconds: totalWithPen,
