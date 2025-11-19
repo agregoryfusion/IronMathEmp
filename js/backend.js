@@ -257,46 +257,90 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
   try {
     if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
 
-    let query = supabase.from("leaderboard").select("*");
+    // Build base query
+    let query = supabase.from("leaderboard").select("*").limit(2000);
 
-    // --- TIME FILTER ---
-    if (timeFilter === "monthly") {
-      // Use last 30 days instead of month_key
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      query = query.gte("date_added", thirtyDaysAgo);
+    // Scope filter
+    if (scopeFilter === "students") {
+      query = query.eq("is_student", true);
+    } else if (scopeFilter === "teachers") {
+      query = query.eq("is_teacher", true);
     }
 
-    // --- ORDERING ---
-    query = query
-      .order("questions_answered", { ascending: false })
-      .order("total_time_seconds", { ascending: true })
-      .limit(500);
+    // TIME FILTER: monthly = calendar month/year; alltime = no date filter (we'll collapse to best-per-player)
+    if (timeFilter === "monthly") {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+      query = query.gte("date_added", startOfMonth).lt("date_added", startOfNextMonth);
+      // order criteria for monthly view
+      query = query.order("questions_answered", { ascending: false }).order("total_time_seconds", { ascending: true });
+    } else {
+      // all-time: fetch entries, then compute best-per-player client-side
+      // keep an ordering to make pagination deterministic
+      query = query.order("questions_answered", { ascending: false }).order("total_time_seconds", { ascending: true });
+    }
 
     const { data, error } = await query;
 
     if (error) {
-      console.error("Leaderboard fetch failed:", error);
-      if (lbStatus) lbStatus.textContent = "Failed to load leaderboard";
-      return;
+      console.error("loadLeaderboard query error:", error);
+      if (lbStatus) lbStatus.textContent = "Error loading leaderboard";
+      return { data: null, error };
     }
 
-    const normalized = (data || []).map(row => ({
-      playerName: row.player_name,
-      questionsAnswered: row.questions_answered,
-      totalTime: row.total_time_seconds,
-      dateAdded: row.date_added ? new Date(row.date_added).getTime() : null,
-      isTeacher: row.is_teacher,
-      isStudent: row.is_student
-    }));
+    let rows = Array.isArray(data) ? data : [];
 
-    const filtered = applyLeaderboardFilter(normalized, scopeFilter);
-    renderLeaderboard(filtered);
+    if (timeFilter === "alltime") {
+      // Reduce to best row per player_name
+      const bestByPlayer = new Map();
+      for (const r of rows) {
+        const name = r.player_name || r.playerName || "(unknown)";
+        const qAns = Number(r.questions_answered ?? 0);
+        const totTime = Number(r.total_time_seconds ?? Infinity);
+        const existing = bestByPlayer.get(name);
+        if (!existing) {
+          bestByPlayer.set(name, r);
+        } else {
+          const exQ = Number(existing.questions_answered ?? 0);
+          const exT = Number(existing.total_time_seconds ?? Infinity);
+          // Prefer higher questions_answered; tie-breaker lower total_time_seconds; final tiebreak: newer date_added
+          if (
+            qAns > exQ ||
+            (qAns === exQ && totTime < exT) ||
+            (qAns === exQ && totTime === exT && new Date(r.date_added) > new Date(existing.date_added))
+          ) {
+            bestByPlayer.set(name, r);
+          }
+        }
+      }
+      rows = Array.from(bestByPlayer.values());
+      // Sort best-per-player results for display
+      rows.sort((a, b) => {
+        const qa = Number(a.questions_answered ?? 0);
+        const qb = Number(b.questions_answered ?? 0);
+        if (qa !== qb) return qb - qa; // desc
+        const ta = Number(a.total_time_seconds ?? Infinity);
+        const tb = Number(b.total_time_seconds ?? Infinity);
+        if (ta !== tb) return ta - tb; // asc
+        return new Date(b.date_added) - new Date(a.date_added); // newest first
+      });
+    }
 
-    if (lbStatus) lbStatus.textContent = "";
-  } 
-  catch (e) {
-    console.error(e);
-    if (lbStatus) lbStatus.textContent = "Failed";
+    // Render using existing renderer (assumes renderLeaderboard exists in this file)
+    try {
+      renderLeaderboard(rows);
+      if (lbStatus) lbStatus.textContent = "";
+    } catch (renderErr) {
+      console.error("renderLeaderboard failed:", renderErr);
+      if (lbStatus) lbStatus.textContent = "";
+    }
+
+    return { data: rows, error: null };
+  } catch (e) {
+    console.error("loadLeaderboard exception:", e);
+    if (lbStatus) lbStatus.textContent = "Error loading leaderboard";
+    return { data: null, error: e };
   }
 }
 
