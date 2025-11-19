@@ -347,19 +347,21 @@ function getEmperorTopStudent() {
 
 // Add robust insert-with-fallback helper
 async function tryInsertWithFallback(tableNames = [], payload, opts = { single: false, select: false }) {
-	// ensure array payload for multi-row inserts, object ok for single
-	const single = !!opts.single;
+	// try each table name variant until one succeeds
 	for (const t of tableNames) {
 		try {
 			let q = supabase.from(t).insert(payload);
-			if (opts.select) q = q.select();
+			// Respect caller's desire to return inserted rows
+			if (opts.select) {
+				q = q.select();
+				if (opts.single) q = q.single();
+			}
 			const res = await q;
 			if (res.error) {
 				console.warn(`Insert into "${t}" returned error:`, res.error);
-				// try next table name
 				continue;
 			}
-			// success
+			// success (res may be { data, error } or direct array/object depending on client)
 			return res;
 		} catch (e) {
 			console.warn(`Insert into "${t}" threw:`, e);
@@ -371,20 +373,22 @@ async function tryInsertWithFallback(tableNames = [], payload, opts = { single: 
 }
 
 async function insertSessionRow(sessionObj) {
-	// Try common table name variants
-	const names = ["sessions", "Sessions"];
-	// prefer select.single return when available
+	// Try common table name variants, return inserted single row (like recordUserLogin does)
+	const names = ["sessions", "Sessions", "session", "Session"];
 	return tryInsertWithFallback(names, sessionObj, { single: true, select: true });
 }
 
 async function insertQuestionRows(questionRows) {
-	const names = ["questions", "Questions"];
-	return tryInsertWithFallback(names, questionRows, { single: false, select: false });
+	// Questions is commonly plural and we often insert multiple rows; return inserted rows array
+	const names = ["questions", "Questions", "question", "Question"];
+	return tryInsertWithFallback(names, questionRows, { single: false, select: true });
 }
 
 async function insertLeaderboardRow(lbRow) {
-	const names = ["leaderboard", "Leaderboard"];
-	return tryInsertWithFallback(names, lbRow, { single: false, select: false });
+	// Leaderboard may be singular/plural/capitalized
+	const names = ["leaderboard", "Leaderboard", "leaderboards", "Leaderboards"];
+	// single insert, return the inserted row
+	return tryInsertWithFallback(names, lbRow, { single: true, select: true });
 }
 
 // Button wiring
