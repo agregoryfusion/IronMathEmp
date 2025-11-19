@@ -181,7 +181,7 @@ function nextQuestion(){
       const trueT = (performance.now() - qStartTs) / 1000;
       totalTimeTrue += trueT;
       runData.results.push({
-        questionNumber: correctCount + 1,  // ⭐ NEW
+        questionNumber: correctCount + 1,  // ⭐ NEWish but kinda old?
         a: current.a,
         b: current.b,
         stage,
