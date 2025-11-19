@@ -237,3 +237,30 @@ h1{margin:18px 0 6px;color:var(--accent)}
 #leaderboardButtons button:hover{
   filter:brightness(1.05);
 }
+#leaderboardTimeButtons,
+#leaderboardButtons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+#leaderboardTimeButtons button,
+#leaderboardButtons button {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#leaderboardTimeButtons button.active,
+#leaderboardButtons button.active {
+  background: var(--accent2);
+  box-shadow: 0 0 12px var(--accent2);
+  transform: scale(1.05);
+}
+

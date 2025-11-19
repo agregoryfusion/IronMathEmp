@@ -99,11 +99,16 @@ async function upsertLeaderboardEntry({
 }) {
   const nowIso = new Date().toISOString();
 
-  const { data: existing, error: fetchErr } = await supabase
-    .from("leaderboard")
-    .select("*")
-    .eq("player_name", playerName)
-    .maybeSingle();
+// Monthly key: YYYY-MM
+const monthKey = new Date().toISOString().slice(0, 7);
+
+const { data: existing, error: fetchErr } = await supabase
+  .from("leaderboard")
+  .select("*")
+  .eq("player_name", playerName)
+  .eq("month_key", monthKey)
+  .maybeSingle();
+
 
   if (fetchErr) {
     console.error("Leaderboard fetch error:", fetchErr);
@@ -115,6 +120,7 @@ async function upsertLeaderboardEntry({
       .from("leaderboard")
       .insert({
         player_name: playerName,
+        month_key: monthKey,
         stage_reached: stageReached,
         questions_answered: questionsAnswered,
         total_time_seconds: totalTime,
@@ -143,6 +149,7 @@ async function upsertLeaderboardEntry({
     .from("leaderboard")
     .update({
       stage_reached: stageReached,
+      month_key: monthKey,
       questions_answered: questionsAnswered,
       total_time_seconds: totalTime,
       penalty_time_seconds: penaltyTime,
@@ -280,17 +287,52 @@ function renderLeaderboard(data) {
   }
 }
 
-async function loadLeaderboard(filterType = "all", forceRefresh = false) {
+async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forceRefresh = false) {
   try {
     if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
-    await fetchAndCacheLeaderboard(forceRefresh);
-    renderLeaderboard(applyLeaderboardFilter(cachedLeaderboardData || [], filterType));
+
+    let query = supabase.from("leaderboard").select("*");
+
+    // --- TIME FILTER ---
+    if (timeFilter === "monthly") {
+      const monthKey = new Date().toISOString().slice(0, 7);
+      query = query.eq("month_key", monthKey);
+    }
+
+    // --- ORDERING ---
+    query = query
+      .order("questions_answered", { ascending: false })
+      .order("total_time_seconds", { ascending: true })
+      .limit(500);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Leaderboard fetch failed:", error);
+      if (lbStatus) lbStatus.textContent = "Failed to load leaderboard";
+      return;
+    }
+
+    const normalized = (data || []).map(row => ({
+      playerName: row.player_name,
+      questionsAnswered: row.questions_answered,
+      totalTime: row.total_time_seconds,
+      dateAdded: row.date_added ? new Date(row.date_added).getTime() : null,
+      isTeacher: row.is_teacher,
+      isStudent: row.is_student
+    }));
+
+    const filtered = applyLeaderboardFilter(normalized, scopeFilter);
+    renderLeaderboard(filtered);
+
     if (lbStatus) lbStatus.textContent = "";
-  } catch (e) {
+  } 
+  catch (e) {
     console.error(e);
-    if (lbStatus) lbStatus.textContent = "Failed to load leaderboard";
+    if (lbStatus) lbStatus.textContent = "Failed";
   }
 }
+
 
 function toggleLeaderboard(filterType = "all") {
   if (!lbWrap) return;
