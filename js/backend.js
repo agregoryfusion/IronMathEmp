@@ -345,50 +345,65 @@ function getEmperorTopStudent() {
   return cachedEmperorData?.[0] || null;
 }
 
-// Add robust insert-with-fallback helper
-async function tryInsertWithFallback(tableNames = [], payload, opts = { single: false, select: false }) {
-	// try each table name variant until one succeeds
-	for (const t of tableNames) {
-		try {
-			let q = supabase.from(t).insert(payload);
-			// Respect caller's desire to return inserted rows
-			if (opts.select) {
-				q = q.select();
-				if (opts.single) q = q.single();
-			}
-			const res = await q;
-			if (res.error) {
-				console.warn(`Insert into "${t}" returned error:`, res.error);
-				continue;
-			}
-			// success (res may be { data, error } or direct array/object depending on client)
-			return res;
-		} catch (e) {
-			console.warn(`Insert into "${t}" threw:`, e);
-			continue;
-		}
-	}
-	// all attempts failed
-	throw new Error(`All insert attempts failed for tables: ${tableNames.join(", ")}`);
-}
+// Replace generic fallback helpers with direct inserts matching recordUserLogin's pattern
 
 async function insertSessionRow(sessionObj) {
-	// Try common table name variants, return inserted single row (like recordUserLogin does)
-	const names = ["sessions", "Sessions", "session", "Session"];
-	return tryInsertWithFallback(names, sessionObj, { single: true, select: true });
+  try {
+    // Insert and return the created session row (select().single() like users insert)
+    const { data, error } = await supabase
+      .from("sessions")
+      .insert(sessionObj)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Session insert failed:", error);
+      return { data: null, error };
+    }
+    return { data, error: null };
+  } catch (e) {
+    console.error("Session insert exception:", e);
+    return { data: null, error: e };
+  }
 }
 
 async function insertQuestionRows(questionRows) {
-	// Questions is commonly plural and we often insert multiple rows; return inserted rows array
-	const names = ["questions", "Questions", "question", "Question"];
-	return tryInsertWithFallback(names, questionRows, { single: false, select: true });
+  try {
+    // Insert multiple question rows; return inserted array
+    const { data, error } = await supabase
+      .from("questions")
+      .insert(questionRows)
+      .select();
+
+    if (error) {
+      console.error("Questions insert failed:", error);
+      return { data: null, error };
+    }
+    return { data, error: null };
+  } catch (e) {
+    console.error("Questions insert exception:", e);
+    return { data: null, error: e };
+  }
 }
 
 async function insertLeaderboardRow(lbRow) {
-	// Leaderboard may be singular/plural/capitalized
-	const names = ["leaderboard", "Leaderboard", "leaderboards", "Leaderboards"];
-	// single insert, return the inserted row
-	return tryInsertWithFallback(names, lbRow, { single: true, select: true });
+  try {
+    // Insert leaderboard row and return it
+    const { data, error } = await supabase
+      .from("leaderboard")
+      .insert(lbRow)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Leaderboard insert failed:", error);
+      return { data: null, error };
+    }
+    return { data, error: null };
+  } catch (e) {
+    console.error("Leaderboard insert exception:", e);
+    return { data: null, error: e };
+  }
 }
 
 // Button wiring
