@@ -254,6 +254,12 @@ function renderLeaderboard(data) {
 }
 
 async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forceRefresh = false) {
+  // Backwards-compat: some callers pass (scope, true) expecting forceRefresh;
+  // if timeFilter is a boolean, treat it as forceRefresh and restore default timeFilter.
+  if (typeof timeFilter === "boolean") {
+    forceRefresh = timeFilter;
+    timeFilter = "monthly";
+  }
   try {
     if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
 
