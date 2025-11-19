@@ -306,18 +306,34 @@ async function uploadSession(totalTrue){
       version: FM.GAME_VERSION
     };
 
-    const { data: sessionRowsRaw, error: sessionError } = await backend.supabase
-      .from("sessions")
-      .insert(insertPayload)
-      .select()
-      .single();
+    const s = document.getElementById("saved-status");
+    if (s) {
+      s.textContent = "Saving session...";
+      s.style.color = "";
+    }
 
-    if (sessionError) throw sessionError;
+    // Use backend helper to insert session (tries sensible table-name variants)
+    let sessionInsertResult = null;
+    try {
+      sessionInsertResult = await backend.insertSessionRow(insertPayload);
+    } catch (se) {
+      console.error("Session insert failed (all attempts):", se);
+      throw se;
+    }
 
-    // normalize returned row (could be object or array, and id field name may vary)
-    const sessionRows = Array.isArray(sessionRowsRaw) ? sessionRowsRaw[0] : sessionRowsRaw;
-    const sessionNumericId = sessionRows?.session_id ?? sessionRows?.id ?? null;
+    // Normalize returned row (select().single() may return {data, error} or a direct object depending on client)
+    let sessionRow = null;
+    if (sessionInsertResult && sessionInsertResult.data) {
+      sessionRow = Array.isArray(sessionInsertResult.data) ? sessionInsertResult.data[0] : sessionInsertResult.data;
+    } else if (sessionInsertResult && sessionInsertResult.length) {
+      sessionRow = sessionInsertResult[0];
+    } else {
+      sessionRow = sessionInsertResult;
+    }
 
+    const sessionNumericId = sessionRow?.session_id ?? sessionRow?.id ?? null;
+
+    // Prepare question rows
     const questionsPayload = runData.results.map((q, idx) => ({
       session_id: sessionNumericId,
       question_number: q.questionNumber ?? (idx + 1),
@@ -333,22 +349,47 @@ async function uploadSession(totalTrue){
     }));
 
     if (questionsPayload.length > 0) {
-      const { error: qError } = await backend.supabase
-        .from("questions")
-        .insert(questionsPayload);
-      if (qError) console.error("Question insert error:", qError);
+      try {
+        await backend.insertQuestionRows(questionsPayload);
+      } catch (qe) {
+        // non-fatal: log clearly but continue to leaderboard attempt
+        console.error("Questions insert failed (all attempts):", qe);
+      }
     }
 
-    await backend.upsertLeaderboardEntry({
-      playerName,
-      questionsAnswered: correctCount,
-      totalTime: totalWithPen,
-      penaltyTime: penaltySeconds,
-      stageReached: stage,
-      isTeacher: !!auth.isTeacher,
-      isStudent: !!auth.isStudent,
-      versionNumber: FM.GAME_VERSION
-    });
+    // Upsert Leaderboard entry (existing function) and also try raw insert as redundancy
+    try {
+      await backend.upsertLeaderboardEntry({
+        playerName,
+        questionsAnswered: correctCount,
+        totalTime: totalWithPen,
+        penaltyTime: penaltySeconds,
+        stageReached: stage,
+        isTeacher: !!auth.isTeacher,
+        isStudent: !!auth.isStudent,
+        versionNumber: FM.GAME_VERSION
+      });
+    } catch (ue) {
+      console.warn("upsertLeaderboardEntry failed:", ue);
+    }
+
+    try {
+      await backend.insertLeaderboardRow({
+        user_id: window.currentUserId || null,
+        player_name: playerName,
+        month_key: new Date().toISOString().slice(0,7),
+        stage_reached: stage,
+        questions_answered: correctCount,
+        total_time_seconds: totalWithPen,
+        penalty_time_seconds: penaltySeconds,
+        date_added: createdIso,
+        is_teacher: !!auth.isTeacher,
+        is_student: !!auth.isStudent,
+        version_number: FM.GAME_VERSION
+      });
+    } catch (lbe) {
+      console.warn("Leaderboard insert fallback failed:", lbe);
+    }
 
     const cacheEntry = {
       playerName,
@@ -361,7 +402,6 @@ async function uploadSession(totalTrue){
       isStudent: !!auth.isStudent
     };
     backend.updateCachedLeaderboardWithNewScore(cacheEntry);
-    const s = document.getElementById("saved-status");
     if (s) {
       s.textContent = "Saved ✓";
       s.style.color = "#7fdca2";

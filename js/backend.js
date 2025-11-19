@@ -345,6 +345,48 @@ function getEmperorTopStudent() {
   return cachedEmperorData?.[0] || null;
 }
 
+// Add robust insert-with-fallback helper
+async function tryInsertWithFallback(tableNames = [], payload, opts = { single: false, select: false }) {
+	// ensure array payload for multi-row inserts, object ok for single
+	const single = !!opts.single;
+	for (const t of tableNames) {
+		try {
+			let q = supabase.from(t).insert(payload);
+			if (opts.select) q = q.select();
+			const res = await q;
+			if (res.error) {
+				console.warn(`Insert into "${t}" returned error:`, res.error);
+				// try next table name
+				continue;
+			}
+			// success
+			return res;
+		} catch (e) {
+			console.warn(`Insert into "${t}" threw:`, e);
+			continue;
+		}
+	}
+	// all attempts failed
+	throw new Error(`All insert attempts failed for tables: ${tableNames.join(", ")}`);
+}
+
+async function insertSessionRow(sessionObj) {
+	// Try common table name variants
+	const names = ["sessions", "Sessions"];
+	// prefer select.single return when available
+	return tryInsertWithFallback(names, sessionObj, { single: true, select: true });
+}
+
+async function insertQuestionRows(questionRows) {
+	const names = ["questions", "Questions"];
+	return tryInsertWithFallback(names, questionRows, { single: false, select: false });
+}
+
+async function insertLeaderboardRow(lbRow) {
+	const names = ["leaderboard", "Leaderboard"];
+	return tryInsertWithFallback(names, lbRow, { single: false, select: false });
+}
+
 // Button wiring
 if (viewAllBtn) {
   viewAllBtn.addEventListener("click", () => {
@@ -371,5 +413,9 @@ FM.backend = {
   fetchAndCacheLeaderboard,
   loadLeaderboard,
   toggleLeaderboard,
-  getEmperorTopStudent
+  getEmperorTopStudent,
+  // new helpers
+  insertSessionRow,
+  insertQuestionRows,
+  insertLeaderboardRow
 };
