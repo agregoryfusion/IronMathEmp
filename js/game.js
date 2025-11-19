@@ -373,7 +373,7 @@ async function uploadSession(totalTrue){
       console.warn("Leaderboard insert failed:", lbe);
     }
 
-    try {
+/*     try {
       await backend.insertLeaderboardRow({
         user_id: window.currentUserId || null,
         player_name: playerName,
@@ -388,7 +388,7 @@ async function uploadSession(totalTrue){
       });
     } catch (lbe) {
       console.warn("Leaderboard insert fallback failed:", lbe);
-    }
+    } */
 
     const cacheEntry = {
       playerName,
