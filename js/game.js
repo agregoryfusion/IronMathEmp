@@ -354,7 +354,7 @@ async function uploadSession(totalTrue){
         console.error("Questions insert failed (all attempts):", qe);
       }
     }
-
+    if (correctCount > 0) {
     // Upsert Leaderboard entry (existing function) and also try raw insert as redundancy
     try {
       await backend.insertLeaderboardRow({
@@ -371,7 +371,7 @@ async function uploadSession(totalTrue){
       });
     } catch (lbe) {
       console.warn("Leaderboard insert failed:", lbe);
-    }
+    }}
 
 /*     try {
       await backend.insertLeaderboardRow({
