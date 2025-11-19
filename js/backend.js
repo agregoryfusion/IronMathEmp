@@ -97,30 +97,13 @@ async function upsertLeaderboardEntry({
   isStudent,
   versionNumber
 }) {
+  // REPLACED: no upsert or month_key anymore — always insert a new leaderboard row
   const nowIso = new Date().toISOString();
-
-// Monthly key: YYYY-MM
-const monthKey = new Date().toISOString().slice(0, 7);
-
-const { data: existing, error: fetchErr } = await supabase
-  .from("leaderboard")
-  .select("*")
-  .eq("player_name", playerName)
-  .eq("month_key", monthKey)
-  .maybeSingle();
-
-
-  if (fetchErr) {
-    console.error("Leaderboard fetch error:", fetchErr);
-    return;
-  }
-
-  if (!existing) {
-    const { error: insertErr } = await supabase
+  try {
+    const { data, error } = await supabase
       .from("leaderboard")
       .insert({
         player_name: playerName,
-        month_key: monthKey,
         stage_reached: stageReached,
         questions_answered: questionsAnswered,
         total_time_seconds: totalTime,
@@ -129,36 +112,19 @@ const { data: existing, error: fetchErr } = await supabase
         is_teacher: isTeacher,
         is_student: isStudent,
         version_number: versionNumber
-      });
+      })
+      .select()
+      .single();
 
-    if (insertErr) console.error("Leaderboard insert failed:", insertErr);
-    return;
+    if (error) {
+      console.error("Leaderboard insert (upsert replacement) failed:", error);
+      return { data: null, error };
+    }
+    return { data, error: null };
+  } catch (e) {
+    console.error("Leaderboard insert exception:", e);
+    return { data: null, error: e };
   }
-
-  const betterQuestions = questionsAnswered > existing.questions_answered;
-  const sameQuestions = questionsAnswered === existing.questions_answered;
-  const fasterTime = totalTime < existing.total_time_seconds;
-  const shouldUpdate = betterQuestions || (sameQuestions && fasterTime);
-
-  if (!shouldUpdate) {
-    console.log("Leaderboard: new score is NOT better, skipping update.");
-    return;
-  }
-
-  const { error: updateErr } = await supabase
-    .from("leaderboard")
-    .update({
-      stage_reached: stageReached,
-      month_key: monthKey,
-      questions_answered: questionsAnswered,
-      total_time_seconds: totalTime,
-      penalty_time_seconds: penaltyTime,
-      date_added: nowIso,
-      version_number: versionNumber
-    })
-    .eq("leaderboard_id", existing.leaderboard_id);
-
-  if (updateErr) console.error("Leaderboard update failed:", updateErr);
 }
 
 function updateCachedLeaderboardWithNewScore(newEntry) {
@@ -295,8 +261,9 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
 
     // --- TIME FILTER ---
     if (timeFilter === "monthly") {
-      const monthKey = new Date().toISOString().slice(0, 7);
-      query = query.eq("month_key", monthKey);
+      // Use last 30 days instead of month_key
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      query = query.gte("date_added", thirtyDaysAgo);
     }
 
     // --- ORDERING ---

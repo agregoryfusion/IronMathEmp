@@ -357,18 +357,20 @@ async function uploadSession(totalTrue){
 
     // Upsert Leaderboard entry (existing function) and also try raw insert as redundancy
     try {
-      await backend.upsertLeaderboardEntry({
-        playerName,
-        questionsAnswered: correctCount,
-        totalTime: totalWithPen,
-        penaltyTime: penaltySeconds,
-        stageReached: stage,
-        isTeacher: !!auth.isTeacher,
-        isStudent: !!auth.isStudent,
-        versionNumber: FM.GAME_VERSION
+      await backend.insertLeaderboardRow({
+        user_id: window.currentUserId || null,
+        player_name: playerName,
+        stage_reached: stage,
+        questions_answered: correctCount,
+        total_time_seconds: totalWithPen,
+        penalty_time_seconds: penaltySeconds,
+        date_added: createdIso,
+        is_teacher: !!auth.isTeacher,
+        is_student: !!auth.isStudent,
+        version_number: FM.GAME_VERSION
       });
-    } catch (ue) {
-      console.warn("upsertLeaderboardEntry failed:", ue);
+    } catch (lbe) {
+      console.warn("Leaderboard insert failed:", lbe);
     }
 
     try {
