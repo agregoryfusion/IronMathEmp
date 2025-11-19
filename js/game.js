@@ -181,7 +181,7 @@ function nextQuestion(){
       const trueT = (performance.now() - qStartTs) / 1000;
       totalTimeTrue += trueT;
       runData.results.push({
-        questionNumber: correctCount + 1,  // ⭐ NEWish but kinda old? but kinda new>?eeee
+        questionNumber: runData.results.length + 1,
         a: current.a,
         b: current.b,
         stage,
@@ -207,6 +207,7 @@ function nextQuestion(){
       correctCount++;
       questionCount++;
       runData.results.push({
+        questionNumber: runData.results.length + 1,
         a: current.a,
         b: current.b,
         stage,
@@ -238,7 +239,7 @@ function nextQuestion(){
 
       if (remaining <= 0) {
         runData.results.push({
-          questionNumber: correctCount + 1,  // ⭐ NEW
+          questionNumber: runData.results.length + 1,
           a: current.a,
           b: current.b,
           stage,
@@ -291,28 +292,35 @@ async function uploadSession(totalTrue){
     const auth = FM.auth || { playerName:"Player", isTeacher:false, isStudent:false };
     const playerName = auth.playerName || "Player";
 
-    const { data: sessionRows, error: sessionError } = await backend.supabase
+    // include both keys for compatibility with varying DB schemas
+    const insertPayload = {
+      user_id: window.currentUserId || null,
+      name: playerName,
+      questions_answered: correctCount,
+      true_time_seconds: totalTrue,
+      penalty_time_seconds: penaltySeconds,
+      total_time_seconds: totalWithPen,
+      stage_reached: stage,
+      created_at: createdIso,
+      version_number: FM.GAME_VERSION,
+      version: FM.GAME_VERSION
+    };
+
+    const { data: sessionRowsRaw, error: sessionError } = await backend.supabase
       .from("sessions")
-      .insert({
-        user_id: window.currentUserId || null,
-        name: playerName,
-        questions_answered: correctCount,
-        true_time_seconds: totalTrue,
-        penalty_time_seconds: penaltySeconds,
-        total_time_seconds: totalWithPen,
-        stage_reached: stage,
-        created_at: createdIso,
-        version_number: FM.GAME_VERSION
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
     if (sessionError) throw sessionError;
-    const sessionNumericId = sessionRows.session_id;
 
-    const questionsPayload = runData.results.map(q => ({
+    // normalize returned row (could be object or array, and id field name may vary)
+    const sessionRows = Array.isArray(sessionRowsRaw) ? sessionRowsRaw[0] : sessionRowsRaw;
+    const sessionNumericId = sessionRows?.session_id ?? sessionRows?.id ?? null;
+
+    const questionsPayload = runData.results.map((q, idx) => ({
       session_id: sessionNumericId,
-      question_number: q.questionNumber,       // ⭐ NEW
+      question_number: q.questionNumber ?? (idx + 1),
       a: q.a,
       b: q.b,
       time_taken: q.timeTaken,
@@ -320,7 +328,8 @@ async function uploadSession(totalTrue){
       success: q.success,
       date_added: createdIso,
       player_name: playerName,
-      version_number: FM.GAME_VERSION
+      version_number: FM.GAME_VERSION,
+      version: FM.GAME_VERSION
     }));
 
     if (questionsPayload.length > 0) {
