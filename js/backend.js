@@ -260,32 +260,17 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
     forceRefresh = timeFilter;
     timeFilter = "monthly";
   }
+
   try {
     if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
 
-    // Build base query
-    let query = supabase.from("leaderboard").select("*").limit(2000);
+    // Build base query (apply scope filter server-side for efficiency)
+    let query = supabase.from("leaderboard").select("*").limit(5000);
+    if (scopeFilter === "students") query = query.eq("is_student", true);
+    else if (scopeFilter === "teachers") query = query.eq("is_teacher", true);
 
-    // Scope filter
-    if (scopeFilter === "students") {
-      query = query.eq("is_student", true);
-    } else if (scopeFilter === "teachers") {
-      query = query.eq("is_teacher", true);
-    }
-
-    // TIME FILTER: monthly = calendar month/year; alltime = no date filter (we'll collapse to best-per-player)
-    if (timeFilter === "monthly") {
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
-      query = query.gte("date_added", startOfMonth).lt("date_added", startOfNextMonth);
-      // order criteria for monthly view
-      query = query.order("questions_answered", { ascending: false }).order("total_time_seconds", { ascending: true });
-    } else {
-      // all-time: fetch entries, then compute best-per-player client-side
-      // keep an ordering to make pagination deterministic
-      query = query.order("questions_answered", { ascending: false }).order("total_time_seconds", { ascending: true });
-    }
+    // Order to make results deterministic; we'll do filtering & reduction client-side
+    query = query.order("questions_answered", { ascending: false }).order("total_time_seconds", { ascending: true });
 
     const { data, error } = await query;
 
@@ -295,54 +280,94 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
       return { data: null, error };
     }
 
-    let rows = Array.isArray(data) ? data : [];
+    const rows = Array.isArray(data) ? data : [];
 
-    if (timeFilter === "alltime") {
-      // Reduce to best row per player_name
+    // Normalize DB rows to the renderer format
+    const normalized = rows
+      .map(r => ({
+        raw: r,
+        playerName: r.player_name ?? r.playerName ?? "(unknown)",
+        questionsAnswered: Number(r.questions_answered ?? 0),
+        totalTime: Number(r.total_time_seconds ?? 0),
+        penaltyTime: Number(r.penalty_time_seconds ?? 0),
+        dateAdded: r.date_added ? new Date(r.date_added).getTime() : null,
+        isTeacher: !!r.is_teacher,
+        isStudent: !!r.is_student,
+        stageReached: r.stage_reached ?? null
+      }));
+
+    let outRows = [];
+
+    if (timeFilter === "monthly") {
+      // Calendar month/year match with current local time
+      const now = new Date();
+      const curMonth = now.getMonth();
+      const curYear = now.getFullYear();
+
+      outRows = normalized.filter(n => {
+        if (!n.dateAdded) return false;
+        const d = new Date(n.dateAdded);
+        return d.getMonth() === curMonth && d.getFullYear() === curYear;
+      });
+
+      // Sort monthly results
+      outRows.sort((a, b) => {
+        if (b.questionsAnswered === a.questionsAnswered)
+          return a.totalTime - b.totalTime;
+        return b.questionsAnswered - a.questionsAnswered;
+      });
+    } else {
+      // alltime: reduce to best-per-player
       const bestByPlayer = new Map();
-      for (const r of rows) {
-        const name = r.player_name || r.playerName || "(unknown)";
-        const qAns = Number(r.questions_answered ?? 0);
-        const totTime = Number(r.total_time_seconds ?? Infinity);
-        const existing = bestByPlayer.get(name);
+      for (const n of normalized) {
+        const key = (n.playerName || "").trim().toLowerCase();
+        const existing = bestByPlayer.get(key);
         if (!existing) {
-          bestByPlayer.set(name, r);
+          bestByPlayer.set(key, n);
         } else {
-          const exQ = Number(existing.questions_answered ?? 0);
-          const exT = Number(existing.total_time_seconds ?? Infinity);
-          // Prefer higher questions_answered; tie-breaker lower total_time_seconds; final tiebreak: newer date_added
+          // prefer higher questionsAnswered, then lower totalTime, then newer dateAdded
           if (
-            qAns > exQ ||
-            (qAns === exQ && totTime < exT) ||
-            (qAns === exQ && totTime === exT && new Date(r.date_added) > new Date(existing.date_added))
+            n.questionsAnswered > existing.questionsAnswered ||
+            (n.questionsAnswered === existing.questionsAnswered && n.totalTime < existing.totalTime) ||
+            (n.questionsAnswered === existing.questionsAnswered && n.totalTime === existing.totalTime && (n.dateAdded || 0) > (existing.dateAdded || 0))
           ) {
-            bestByPlayer.set(name, r);
+            bestByPlayer.set(key, n);
           }
         }
       }
-      rows = Array.from(bestByPlayer.values());
-      // Sort best-per-player results for display
-      rows.sort((a, b) => {
-        const qa = Number(a.questions_answered ?? 0);
-        const qb = Number(b.questions_answered ?? 0);
-        if (qa !== qb) return qb - qa; // desc
-        const ta = Number(a.total_time_seconds ?? Infinity);
-        const tb = Number(b.total_time_seconds ?? Infinity);
-        if (ta !== tb) return ta - tb; // asc
-        return new Date(b.date_added) - new Date(a.date_added); // newest first
+      outRows = Array.from(bestByPlayer.values());
+      // sort best-per-player
+      outRows.sort((a, b) => {
+        if (b.questionsAnswered === a.questionsAnswered)
+          return a.totalTime - b.totalTime;
+        return b.questionsAnswered - a.questionsAnswered;
       });
     }
 
-    // Render using existing renderer (assumes renderLeaderboard exists in this file)
+    // Update cached data for other UI uses (store simplified objects expected elsewhere)
+    cachedLeaderboardData = outRows.map(r => ({
+      playerName: r.playerName,
+      questionsAnswered: r.questionsAnswered,
+      totalTime: r.totalTime,
+      penaltyTime: r.penaltyTime,
+      dateAdded: r.dateAdded,
+      isTeacher: r.isTeacher,
+      isStudent: r.isStudent,
+      stageReached: r.stageReached
+    }));
+    cachedEmperorData = cachedLeaderboardData.filter(d => d.isStudent === true);
+    lastLeaderboardFetchTime = Date.now();
+
+    // Render
     try {
-      renderLeaderboard(rows);
+      renderLeaderboard(cachedLeaderboardData);
       if (lbStatus) lbStatus.textContent = "";
     } catch (renderErr) {
       console.error("renderLeaderboard failed:", renderErr);
       if (lbStatus) lbStatus.textContent = "";
     }
 
-    return { data: rows, error: null };
+    return { data: cachedLeaderboardData, error: null };
   } catch (e) {
     console.error("loadLeaderboard exception:", e);
     if (lbStatus) lbStatus.textContent = "Error loading leaderboard";
