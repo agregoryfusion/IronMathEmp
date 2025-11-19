@@ -1,0 +1,44 @@
+name: Auto Increment Version
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Read current version from utils.js
+      id: read_version
+      run: |
+        VERSION=$(grep -oE 'FM\\.GAME_VERSION = "[0-9]+\\.[0-9]+\\.[0-9]+"' js/utils.js | sed 's/FM.GAME_VERSION = "//;s/"//')
+        echo "Current version: $VERSION"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Calculate next version
+      id: bump
+      run: |
+        BASE=$(echo "${{ steps.read_version.outputs.version }}" | cut -d '.' -f 1-2)
+        LAST=$(echo "${{ steps.read_version.outputs.version }}" | cut -d '.' -f 3)
+        NEXT=$((LAST + 1))
+        NEW_VERSION="$BASE.$NEXT"
+        echo "New version: $NEW_VERSION"
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Update utils.js
+      run: |
+        sed -i 's/FM.GAME_VERSION = ".*"/FM.GAME_VERSION = "${{ steps.bump.outputs.new_version }}"/' js/utils.js
+
+    - name: Commit and push version bump
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git add js/utils.js
+        git commit -m "Auto-increment version to ${{ steps.bump.outputs.new_version }}" || echo "No changes to commit"
+        git push origin main
