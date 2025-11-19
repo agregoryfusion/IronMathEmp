@@ -261,6 +261,20 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
     timeFilter = "monthly";
   }
 
+  // Normalize string variants (allow "all", "alltime", "all-time", "monthly", etc.)
+  if (typeof timeFilter === "string") {
+    timeFilter = timeFilter.trim().toLowerCase();
+    if (timeFilter === "all" || timeFilter === "alltime" || timeFilter === "all-time") timeFilter = "alltime";
+    else if (timeFilter === "month" || timeFilter === "monthly" || timeFilter === "thismonth") timeFilter = "monthly";
+    else timeFilter = "monthly";
+  } else {
+    // fallback default
+    timeFilter = "monthly";
+  }
+
+  // Debug inputs
+  console.debug("loadLeaderboard called:", { scopeFilter, timeFilter, forceRefresh });
+
   try {
     if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
 
@@ -281,6 +295,7 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
     }
 
     const rows = Array.isArray(data) ? data : [];
+    console.debug("loadLeaderboard: fetched rows:", rows.length);
 
     // Normalize DB rows to the renderer format
     const normalized = rows
@@ -316,6 +331,8 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
           return a.totalTime - b.totalTime;
         return b.questionsAnswered - a.questionsAnswered;
       });
+
+      console.debug("loadLeaderboard: monthly filtered rows:", outRows.length);
     } else {
       // alltime: reduce to best-per-player
       const bestByPlayer = new Map();
@@ -342,6 +359,8 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
           return a.totalTime - b.totalTime;
         return b.questionsAnswered - a.questionsAnswered;
       });
+
+      console.debug("loadLeaderboard: alltime reduced rows:", outRows.length);
     }
 
     // Update cached data for other UI uses (store simplified objects expected elsewhere)
@@ -451,17 +470,17 @@ async function insertLeaderboardRow(lbRow) {
 // Button wiring
 if (viewAllBtn) {
   viewAllBtn.addEventListener("click", () => {
-    renderLeaderboard(applyLeaderboardFilter(cachedLeaderboardData || [], "all"));
+    loadLeaderboard("all", "alltime", true);
   });
 }
 if (viewStudentsBtn) {
   viewStudentsBtn.addEventListener("click", () => {
-    renderLeaderboard(applyLeaderboardFilter(cachedLeaderboardData || [], "students"));
+    loadLeaderboard("students", "alltime", true);
   });
 }
 if (viewTeachersBtn) {
   viewTeachersBtn.addEventListener("click", () => {
-    renderLeaderboard(applyLeaderboardFilter(cachedLeaderboardData || [], "teachers"));
+    loadLeaderboard("teachers", "alltime", true);
   });
 }
 
