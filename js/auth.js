@@ -2,7 +2,7 @@
 import "./utils.js";
 import "./backend.js";
 import "./game.js";
-
+import "./ui.js";
 const FM = (window.FastMath = window.FastMath || {});
 const U = FM.utils;
 const backend = FM.backend;

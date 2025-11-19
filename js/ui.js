@@ -1,3 +1,9 @@
+const lbMonthlyBtn = document.getElementById("lbMonthlyBtn");
+const lbAllTimeBtn = document.getElementById("lbAllTimeBtn");
+const viewAllBtn = document.getElementById("viewAllBtn");
+const viewStudentsBtn = document.getElementById("viewStudentsBtn");
+const viewTeachersBtn = document.getElementById("viewTeachersBtn");
+
 let currentScope = "all";
 let currentTime = "monthly";
 
