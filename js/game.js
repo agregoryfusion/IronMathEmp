@@ -302,8 +302,7 @@ async function uploadSession(totalTrue){
       total_time_seconds: totalWithPen,
       stage_reached: stage,
       created_at: createdIso,
-      version_number: FM.GAME_VERSION,
-      version: FM.GAME_VERSION
+      version_number: FM.GAME_VERSION
     };
 
     const s = document.getElementById("saved-status");
@@ -344,8 +343,7 @@ async function uploadSession(totalTrue){
       success: q.success,
       date_added: createdIso,
       player_name: playerName,
-      version_number: FM.GAME_VERSION,
-      version: FM.GAME_VERSION
+      version_number: FM.GAME_VERSION
     }));
 
     if (questionsPayload.length > 0) {
