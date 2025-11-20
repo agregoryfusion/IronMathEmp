@@ -101,7 +101,7 @@ highlightTimeButton(currentTime);
 const settingsToggle = document.getElementById("settingsToggle");
 const settingsPanel = document.getElementById("settingsPanel");
 let settingsOpen = false;
-let _prevLbState = null;
+let _origTitle = document.querySelector("h1") ? document.querySelector("h1").textContent : "Fusion Fast Math";
 
 function getGearSVG() {
   return `
@@ -119,13 +119,14 @@ function getCloseSVG() {
 
 function openSettings() {
   if (!settingsPanel || !settingsToggle) return;
-  // save previous leaderboard visibility
-  if (window.FastMath && document.getElementById("leaderboardContainer")) {
-    const lb = document.getElementById("leaderboardContainer");
-    _prevLbState = { display: lb.style.display || "", hasShow: lb.classList.contains("show") };
-    lb.style.display = "none";
-    lb.classList.remove("show");
-  }
+
+  // toggle global settings mode to hide everything except title & version
+  document.body.classList.add("settings-mode");
+
+  // change title to "Settings"
+  const h1 = document.querySelector("h1");
+  if (h1) h1.textContent = "Settings";
+
   settingsPanel.setAttribute("aria-hidden", "false");
   settingsPanel.style.display = "block";
   settingsToggle.innerHTML = getCloseSVG();
@@ -135,13 +136,15 @@ function openSettings() {
 
 function closeSettings() {
   if (!settingsPanel || !settingsToggle) return;
+
+  document.body.classList.remove("settings-mode");
+
+  // restore original title
+  const h1 = document.querySelector("h1");
+  if (h1) h1.textContent = _origTitle || "Fusion Fast Math";
+
   settingsPanel.setAttribute("aria-hidden", "true");
   settingsPanel.style.display = "none";
-  const lb = document.getElementById("leaderboardContainer");
-  if (lb) {
-    lb.style.display = (_prevLbState && _prevLbState.display) ? _prevLbState.display : "block";
-    if (_prevLbState && _prevLbState.hasShow) lb.classList.add("show"); else lb.classList.remove("show");
-  }
   settingsToggle.innerHTML = getGearSVG();
   settingsToggle.setAttribute("aria-label", "Open settings");
   settingsOpen = false;
@@ -152,6 +155,8 @@ function toggleSettings() {
 }
 
 if (settingsToggle) {
+  // ensure the toggle is visible only when we have the element available
+  settingsToggle.style.display = "inline-flex";
   settingsToggle.addEventListener("click", (e) => {
     e.preventDefault();
     toggleSettings();

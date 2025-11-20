@@ -299,9 +299,9 @@ h1{margin:18px 0 6px;color:var(--accent)}
   position: relative;
 }
 
-/* Settings toggle (gear) positioned top-right of end-screen */
+/* Make settings toggle/panel fixed in the top-right so they remain accessible */
 .settings-toggle {
-  position: absolute;
+  position: fixed;
   top: 12px;
   right: 12px;
   background: transparent;
@@ -321,12 +321,10 @@ h1{margin:18px 0 6px;color:var(--accent)}
   color: var(--accent2);
 }
 
-/* Close (X) state styling can reuse same button; toggling is handled by JS (innerSVG swap) */
-
-/* Settings panel popup (simple card) */
+/* Settings panel fixed so it can show independently of other containers */
 .settings-panel {
-  position: absolute;
-  top: 48px;
+  position: fixed;
+  top: 56px;
   right: 12px;
   width: 320px;
   max-width: calc(100% - 32px);
@@ -339,7 +337,27 @@ h1{margin:18px 0 6px;color:var(--accent)}
   color: var(--text);
 }
 
-/* hidden by default; .show added by JS to display */
-.settings-panel[aria-hidden="true"] { display: none; }
-.settings-panel[aria-hidden="false"] { display: block; }
+/* Hide most of the app while settings-mode is active, but keep title, version, toggle and panel */
+body.settings-mode #login-screen,
+body.settings-mode #emperor-screen,
+body.settings-mode #game-container,
+body.settings-mode #end-screen,
+body.settings-mode #leaderboardContainer,
+body.settings-mode #leaderboardButtons,
+body.settings-mode #leaderboardTimeButtons {
+  display: none !important;
+}
+
+/* Ensure title and version remain visible in settings-mode */
+body.settings-mode h1,
+body.settings-mode #version {
+  display: block !important;
+  visibility: visible !important;
+}
+
+/* Ensure settings toggle & panel show in settings-mode */
+body.settings-mode .settings-toggle,
+body.settings-mode .settings-panel {
+  display: inline-flex !important;
+}
 
