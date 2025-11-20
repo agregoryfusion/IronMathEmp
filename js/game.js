@@ -1,7 +1,7 @@
 // game.js - core game logic
 const FM = (window.FastMath = window.FastMath || {});
 const U = FM.utils || {};
-const backend = FM.backend;
+// const backend = FM.backend;  // use runtime lookup instead
 
 // DOM
 const gameContainer = document.getElementById("game-container");
@@ -253,6 +253,10 @@ function nextQuestion(){
   };
 }
 
+function getBackend() {
+  return (window.FastMath && window.FastMath.backend) ? window.FastMath.backend : null;
+}
+
 function gameOver(){
   cancelAnimationFrame(rafId);
   current = null;
@@ -263,8 +267,14 @@ function gameOver(){
     lbWrap.style.display = "block";
     lbWrap.classList.add("show");
   }
- // if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
-  backend.loadLeaderboard("all", true);
+
+  // safe runtime backend call
+  const backendNow = getBackend();
+  if (backendNow && typeof backendNow.loadLeaderboard === "function") {
+    backendNow.loadLeaderboard("all", true).catch(e => console.warn("loadLeaderboard failed:", e));
+  } else {
+    console.warn("gameOver: backend.loadLeaderboard not available");
+  }
 
   const totalTrue = totalTimeTrue;
   const totalWithPen = totalTimeTrue + penaltySeconds;
@@ -311,10 +321,15 @@ async function uploadSession(totalTrue){
       s.style.color = "";
     }
 
+    const backendNow = getBackend();
     // Use backend helper to insert session (tries sensible table-name variants)
     let sessionInsertResult = null;
     try {
-      sessionInsertResult = await backend.insertSessionRow(insertPayload);
+      if (backendNow && typeof backendNow.insertSessionRow === "function") {
+        sessionInsertResult = await backendNow.insertSessionRow(insertPayload);
+      } else {
+        throw new Error("backend.insertSessionRow not available");
+      }
     } catch (se) {
       console.error("Session insert failed (all attempts):", se);
       throw se;
@@ -348,47 +363,38 @@ async function uploadSession(totalTrue){
 
     if (questionsPayload.length > 0) {
       try {
-        await backend.insertQuestionRows(questionsPayload);
+        if (backendNow && typeof backendNow.insertQuestionRows === "function") {
+          await backendNow.insertQuestionRows(questionsPayload);
+        } else {
+          console.warn("insertQuestionRows not available");
+        }
       } catch (qe) {
-        // non-fatal: log clearly but continue to leaderboard attempt
         console.error("Questions insert failed (all attempts):", qe);
       }
     }
-    if (correctCount > 0) {
-    // Upsert Leaderboard entry (existing function) and also try raw insert as redundancy
-    try {
-      await backend.insertLeaderboardRow({
-        user_id: window.currentUserId || null,
-        player_name: playerName,
-        stage_reached: stage,
-        questions_answered: correctCount,
-        total_time_seconds: totalWithPen,
-        penalty_time_seconds: penaltySeconds,
-        date_added: createdIso,
-        is_teacher: !!auth.isTeacher,
-        is_student: !!auth.isStudent,
-        version_number: FM.GAME_VERSION
-      });
-    } catch (lbe) {
-      console.warn("Leaderboard insert failed:", lbe);
-    }}
 
-/*     try {
-      await backend.insertLeaderboardRow({
-        user_id: window.currentUserId || null,
-        player_name: playerName,
-        stage_reached: stage,
-        questions_answered: correctCount,
-        total_time_seconds: totalWithPen,
-        penalty_time_seconds: penaltySeconds,
-        date_added: createdIso,
-        is_teacher: !!auth.isTeacher,
-        is_student: !!auth.isStudent,
-        version_number: FM.GAME_VERSION
-      });
-    } catch (lbe) {
-      console.warn("Leaderboard insert fallback failed:", lbe);
-    } */
+    if (correctCount > 0) {
+      try {
+        if (backendNow && typeof backendNow.insertLeaderboardRow === "function") {
+          await backendNow.insertLeaderboardRow({
+            user_id: window.currentUserId || null,
+            player_name: playerName,
+            stage_reached: stage,
+            questions_answered: correctCount,
+            total_time_seconds: totalWithPen,
+            penalty_time_seconds: penaltySeconds,
+            date_added: createdIso,
+            is_teacher: !!auth.isTeacher,
+            is_student: !!auth.isStudent,
+            version_number: FM.GAME_VERSION
+          });
+        } else {
+          console.warn("insertLeaderboardRow not available");
+        }
+      } catch (lbe) {
+        console.warn("Leaderboard insert failed:", lbe);
+      }
+    }
 
     const cacheEntry = {
       playerName,
@@ -400,7 +406,13 @@ async function uploadSession(totalTrue){
       isTeacher: !!auth.isTeacher,
       isStudent: !!auth.isStudent
     };
-    backend.updateCachedLeaderboardWithNewScore(cacheEntry);
+
+    if (backendNow && typeof backendNow.updateCachedLeaderboardWithNewScore === "function") {
+      backendNow.updateCachedLeaderboardWithNewScore(cacheEntry);
+    } else {
+      console.warn("updateCachedLeaderboardWithNewScore not available");
+    }
+
     if (s) {
       s.textContent = "Saved ✓";
       s.style.color = "#7fdca2";

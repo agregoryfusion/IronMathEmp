@@ -632,12 +632,58 @@ async function fetchAndCacheQuestions(forceRefresh = false) {
       console.log("fetchAndCacheQuestions: fetched rows=", allRows.length);
     }
 
-    // Cache the raw rows; callers can normalize as needed
-    cachedQuestions = allRows.slice(); // shallow copy to avoid external mutation
+    // Normalize rows to the shape the data page expects
+    const rows = (allRows || []).map(r => {
+      // helper to parse date fields
+      const parseDateField = (v) => {
+        if (v == null) return null;
+        const n = Number(v);
+        if (Number.isFinite(n)) {
+          // if looks like ms (>= 1e12) use as-is; if seconds (<= 1e10) convert to ms
+          if (n > 1e12) return Math.trunc(n);
+          if (n > 1e9) return Math.trunc(n * 1000);
+          return Math.trunc(n * 1000);
+        }
+        const t = Date.parse(String(v));
+        return Number.isFinite(t) ? t : null;
+      };
+
+      const aVal = Number(r.a ?? r.A ?? r.a_val ?? r.a_value);
+      const bVal = Number(r.b ?? r.B ?? r.b_val ?? r.b_value);
+
+      const dateField = r.date_added ?? r.dateAdded ?? r.created_at ?? r.date;
+      const dateMs = parseDateField(dateField);
+
+      const mistakes = Number(r.mistakes ?? r.mistake_count ?? 0) || 0;
+
+      const rawSuccess = r.success ?? r.succeeded ?? r.is_success;
+      const success = (typeof rawSuccess === 'boolean') ? rawSuccess : String(rawSuccess).toLowerCase() === 'true';
+
+      const timeTaken = Number(r.time_taken ?? r.timeTaken ?? r.duration ?? 0) || 0;
+
+      const playerName = (r.player_name ?? r.playerName ?? r.name ?? r.user ?? "").toString().trim();
+
+      return {
+        a: Number.isFinite(aVal) ? Math.trunc(aVal) : null,
+        b: Number.isFinite(bVal) ? Math.trunc(bVal) : null,
+        dateMs,
+        mistakes,
+        success,
+        timeTaken,
+        playerName
+      };
+    });
+
+    cachedQuestions = rows;
     cachedQuestionsFetchTime = Date.now();
+    console.log("fetchAndCacheQuestions: normalized rows=", cachedQuestions.length);
     return cachedQuestions;
   } catch (e) {
     console.error("fetchAndCacheQuestions exception:", e);
     return null;
   }
+}
+
+function getCachedQuestions() {
+  return cachedQuestions || [];
 }

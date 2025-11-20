@@ -22,10 +22,11 @@ let cachedQuestions = [];
 let availableDates = []; // yyyy-mm-dd strings
 
 async function loadQuestions(force = false) {
-  if (!backend || typeof backend.fetchAndCacheQuestions !== "function") {
+  const backendNow = (window.FastMath && window.FastMath.backend) ? window.FastMath.backend : null;
+  if (!backendNow || typeof backendNow.fetchAndCacheQuestions !== "function") {
     throw new Error("Backend helper fetchAndCacheQuestions missing");
   }
-  const rows = await backend.fetchAndCacheQuestions(force);
+  const rows = await backendNow.fetchAndCacheQuestions(force);
   cachedQuestions = rows || [];
   // DEBUG: surface totals so we can see if fetch returned everything
   console.log("loadQuestions: cachedQuestions.length=", cachedQuestions.length);
