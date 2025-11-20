@@ -26,7 +26,9 @@ const endScreen = document.getElementById("end-screen");
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
 import {
   getAuth, OAuthProvider, signInWithPopup,
-  setPersistence, browserLocalPersistence, onAuthStateChanged
+  setPersistence, browserLocalPersistence, onAuthStateChanged,
+  // added redirect helpers
+  signInWithRedirect, getRedirectResult
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
 // Firebase config
@@ -43,7 +45,28 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new OAuthProvider("microsoft.com");
-await setPersistence(auth, browserLocalPersistence);
+
+// Make persistence non-blocking so module doesn't stall
+setPersistence(auth, browserLocalPersistence).catch((err) => {
+  console.warn("Could not set Firebase auth persistence; continuing without persistent session.", err);
+});
+
+// Encourage account selection (helps some edge cases / popup flows)
+try {
+  provider.setCustomParameters?.({ prompt: "select_account" });
+} catch (e) {
+  console.warn("Could not set provider parameters:", e);
+}
+
+// Process redirect result (in case signInWithRedirect was used)
+getRedirectResult(auth).then((result) => {
+  if (result && result.user) {
+    console.log("Processed redirect sign-in result");
+    handleSignedIn(result.user).catch(err => console.warn("handleSignedIn after redirect failed:", err));
+  }
+}).catch((err) => {
+  console.warn("getRedirectResult error:", err);
+});
 
 FM.auth = {
   playerName: "Player",
@@ -123,11 +146,27 @@ if (loginBtn) {
     console.log("Login button clicked - attempting sign-in");
     try {
       const result = await signInWithPopup(auth, provider);
-      await handleSignedIn(result.user);
+      if (result && result.user) {
+        await handleSignedIn(result.user);
+      }
     } catch(e) {
-      console.error("Sign-in error:", e);
-      if (loginStatus) {
-        loginStatus.textContent = "Sign-in failed: " + (e?.message || e);
+      console.error("Sign-in (popup) error:", e);
+      const msg = (e && e.message) ? e.message.toLowerCase() : "";
+      const code = e?.code || "";
+      const popupBlocked = /popup/i.test(msg) || /popup/i.test(code) || code === "auth/popup-blocked" || code === "auth/cancelled-popup-request";
+      // Fallback to redirect sign-in if popup blocked or similar
+      if (popupBlocked) {
+        try {
+          if (loginStatus) loginStatus.textContent = "Popup blocked — redirecting to sign-in...";
+          console.warn("Falling back to signInWithRedirect due to popup issue.");
+          await signInWithRedirect(auth, provider);
+          // Redirect will navigate away; getRedirectResult above will handle completion.
+        } catch (re) {
+          console.error("signInWithRedirect failed:", re);
+          if (loginStatus) loginStatus.textContent = "Sign-in failed: " + (re?.message || re);
+        }
+      } else {
+        if (loginStatus) loginStatus.textContent = "Sign-in failed: " + (e?.message || e);
       }
     }
   });
