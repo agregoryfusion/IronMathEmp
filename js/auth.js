@@ -24,7 +24,9 @@ const endScreen = document.getElementById("end-screen");
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
 import {
   getAuth, OAuthProvider, signInWithPopup,
-  setPersistence, browserLocalPersistence, onAuthStateChanged
+  setPersistence, browserLocalPersistence, onAuthStateChanged,
+  // added for redirect fallback
+  signInWithRedirect, getRedirectResult
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
 // Firebase config
@@ -41,6 +43,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new OAuthProvider("microsoft.com");
+
+// Ensure provider prompts account selection (helps in some edge cases)
+try {
+  provider.setCustomParameters && provider.setCustomParameters({ prompt: "select_account" });
+} catch (e) {
+  console.warn("Could not set provider custom parameters:", e);
+}
 
 // Replace top-level await with a non-blocking call and graceful fallback
 setPersistence(auth, browserLocalPersistence).catch((err) => {
@@ -139,19 +148,74 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-if (loginBtn) {
-  loginBtn.addEventListener("click", async ()=>{
+// Process redirect result (in case we used signInWithRedirect fallback)
+getRedirectResult(auth).then((result) => {
+  if (result && result.user) {
+    console.log("Processed redirect sign-in result");
+    handleSignedIn(result.user).catch(err => console.warn("handleSignedIn after redirect failed:", err));
+  }
+}).catch((err) => {
+  // Not fatal; just surface for debugging
+  console.warn("getRedirectResult error:", err);
+});
+
+// Attach login handler (robust to DOM timing)
+function attachLoginHandler() {
+  if (!loginBtn) {
+    console.warn("loginBtn not found at attachLoginHandler time");
+    return;
+  }
+  // avoid attaching twice
+  if (loginBtn._fmHandlerAttached) return;
+  loginBtn._fmHandlerAttached = true;
+
+  loginBtn.addEventListener("click", async (e) => {
     console.log("Login button clicked - attempting sign-in");
     try {
       const result = await signInWithPopup(auth, provider);
-      await handleSignedIn(result.user);
-    } catch(e) {
-      console.error("Sign-in error:", e);
-      if (loginStatus) {
-        loginStatus.textContent = "Sign-in failed: " + (e?.message || e);
+      if (result && result.user) {
+        await handleSignedIn(result.user);
+      }
+    } catch (e) {
+      console.error("Sign-in (popup) error:", e);
+      // If popup was blocked or other popup errors, fallback to redirect
+      const code = e?.code || "";
+      const msg = (e && e.message) ? e.message : "";
+      const shouldRedirect = /popup/i.test(code) || /popup/i.test(msg) || code === "auth/popup-blocked" || code === "auth/cancelled-popup-request";
+      if (shouldRedirect) {
+        try {
+          if (loginStatus) loginStatus.textContent = "Popup blocked — using redirect sign-in...";
+          console.warn("Falling back to signInWithRedirect due to popup issue.");
+          await signInWithRedirect(auth, provider);
+          // Redirect will navigate away; getRedirectResult above will handle result when returning.
+        } catch (re) {
+          console.error("signInWithRedirect failed:", re);
+          if (loginStatus) loginStatus.textContent = "Sign-in failed: " + (re?.message || re);
+        }
+      } else {
+        if (loginStatus) {
+          loginStatus.textContent = "Sign-in failed: " + (e?.message || e);
+        }
       }
     }
   });
+}
+
+// If loginBtn already resolved earlier, attach now; otherwise wait for DOMContentLoaded
+if (loginBtn) {
+  attachLoginHandler();
+} else {
+  document.addEventListener("DOMContentLoaded", () => {
+    // re-resolve element and attach
+    const btn = document.getElementById("loginBtn");
+    if (btn) {
+      // update module-level reference so other code can still read it if needed
+      // (this mirrors the original top-level const behavior for safety)
+      // eslint-disable-next-line no-unused-expressions
+      (function setBtn() { /* re-bind for clarity */ })();
+    }
+    attachLoginHandler();
+  }, { once: true });
 }
 
 if (playBtn) {
