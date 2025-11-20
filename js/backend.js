@@ -30,6 +30,11 @@ let cachedMonthlyFetchTime = 0;
 // Track last requested timeFilter so view buttons can reuse the same cache
 let lastLoadedTimeFilter = "monthly";
 
+// NEW: questions cache & fetch helper (loads the questions table once and normalizes)
+let cachedQuestions = null;
+let cachedQuestionsFetchTime = 0;
+const QUESTIONS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 async function recordUserLogin(email, name) {
   const nowIso = new Date().toISOString();
 
@@ -536,6 +541,44 @@ async function insertLeaderboardRow(lbRow) {
   }
 }
 
+// NEW: questions fetcher
+async function fetchAndCacheQuestions(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && cachedQuestions && (now - cachedQuestionsFetchTime) < QUESTIONS_CACHE_DURATION) {
+    return cachedQuestions;
+  }
+  try {
+    const { data, error } = await supabase
+      .from("questions")
+      .select("*")
+      .limit(20000); // adjust if you expect more rows
+
+    if (error) {
+      console.error("Questions table fetch failed:", error);
+      return null;
+    }
+    const rows = (data || []).map(r => ({
+      a: Number(r.a),
+      b: Number(r.b),
+      dateMs: r.date_added ? (isFinite(Date.parse(r.date_added)) ? Date.parse(r.date_added) : Number(r.date_added)) : null,
+      mistakes: Number(r.mistakes ?? 0),
+      success: !!r.success,
+      timeTaken: Number(r.time_taken ?? r.timeTaken ?? 0),
+      playerName: r.player_name || r.playerName || (r.name || "")
+    }));
+    cachedQuestions = rows;
+    cachedQuestionsFetchTime = Date.now();
+    return cachedQuestions;
+  } catch (e) {
+    console.error("fetchAndCacheQuestions exception:", e);
+    return null;
+  }
+}
+
+function getCachedQuestions() {
+  return cachedQuestions || [];
+}
+
 // Button wiring (student/teacher buttons should only filter the currently loaded cache)
 if (viewAllBtn) {
   viewAllBtn.addEventListener("click", () => {
@@ -567,5 +610,8 @@ FM.backend = {
   // new helpers
   insertSessionRow,
   insertQuestionRows,
-  insertLeaderboardRow
+  insertLeaderboardRow,
+  // questions helpers
+  fetchAndCacheQuestions,
+  getCachedQuestions
 };

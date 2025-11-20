@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fusion Fast Math — Data</title>
+
+  <style>
+    /* minimal styles adapted from your heatmap page */
+    :root{ --bg:#0b0b0c; --fg:#e8e8ef; --muted:#9aa0a6; --accent:#6ea8fe; --border:#2a2a32; }
+    body{ background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto; margin:16px; }
+    h1{ font-size:18px; margin:0 0 12px; color:var(--accent) }
+    .panel{ border:1px solid var(--border); border-radius:10px; padding:12px; background:#0f1116; }
+    .controls{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:8px }
+    select,input,button{ background:#0f1116; color:var(--fg); border:1px solid var(--border); padding:6px 8px; border-radius:8px }
+    .grid-wrap{ overflow:auto; border:1px solid var(--border); border-radius:10px; margin-top:10px; background:#0e0e13; }
+    table.grid{ border-collapse:separate; border-spacing:1px; margin:10px; }
+    table.grid th, table.grid td{ width:24px; height:24px; text-align:center; font-size:11px; }
+    td.cell{ background:#101015; border:1px solid #16161e; cursor:pointer; border-radius:6px; }
+    .legend{ margin-top:8px; color:var(--muted) }
+    .stats{ margin-top:8px; color:var(--muted); font-size:13px; }
+  </style>
+
+  <!-- supabase client (backend.js expects window.supabase) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h1>Data — Heatmap</h1>
+  <div class="panel">
+    <div class="controls">
+      <label>Player
+        <select id="playerSelect"><option value="__ALL__">All players</option></select>
+      </label>
+      <label>Metric
+        <select id="metricSelect">
+          <option value="mistake_count">Mistake count</option>
+          <option value="mistake_rate">Mistake rate (%)</option>
+          <option value="incorrect_count">Incorrect count (!success)</option>
+          <option value="attempts">Attempt count</option>
+          <option value="avg_time">Average time (s)</option>
+          <option value="total_time">Total time (s)</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="allDates" checked /> All dates</label>
+      <label>Date <span id="dateLabel">—</span></label>
+      <input id="dateSlider" type="range" min="0" max="0" value="0" style="width:280px" disabled />
+      <button id="refreshBtn">Refresh</button>
+      <button id="backBtn">Back</button>
+    </div>
+
+    <div class="legend"><span id="legendMax">Max: —</span></div>
+    <div class="grid-wrap">
+      <table class="grid" id="grid" aria-label="Heatmap grid"></table>
+    </div>
+    <div class="stats" id="stats">Loading...</div>
+  </div>
+
+  <script type="module" src="js/data.js"></script>
+</body>
+</html>

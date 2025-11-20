@@ -16,6 +16,8 @@ const emperorScreen = document.getElementById("emperor-screen");
 const emperorName = document.getElementById("emperorName");
 const emperorScore = document.getElementById("emperorScore");
 const playBtn = document.getElementById("playBtn");
+// new: teacher-only data button
+const dataBtn = document.getElementById("dataBtn");
 
 const gameContainer = document.getElementById("game-container");
 const endScreen = document.getElementById("end-screen");
@@ -77,6 +79,11 @@ async function handleSignedIn(user) {
   if (gameContainer) gameContainer.style.display = "none";
   if (endScreen) endScreen.style.display = "none";
 
+  // show or hide Data button for teachers
+  try {
+    if (dataBtn) dataBtn.style.display = isTeacher ? "inline-block" : "none";
+  } catch (e) { /* ignore timing */ }
+
   await backend.fetchAndCacheLeaderboard(true);
   showEmperor();
 }
@@ -113,6 +120,7 @@ onAuthStateChanged(auth, async (user) => {
 
 if (loginBtn) {
   loginBtn.addEventListener("click", async ()=>{
+    console.log("Login button clicked - attempting sign-in");
     try {
       const result = await signInWithPopup(auth, provider);
       await handleSignedIn(result.user);
@@ -122,6 +130,15 @@ if (loginBtn) {
         loginStatus.textContent = "Sign-in failed: " + (e?.message || e);
       }
     }
+  });
+}
+
+// new: Data button navigates to the data page (only visible to teachers)
+if (dataBtn) {
+  dataBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    // open the standalone data page that will query the backend cache
+    window.location.href = "data.html";
   });
 }
 
