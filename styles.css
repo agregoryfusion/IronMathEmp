@@ -4,6 +4,7 @@
   --leaderboard-self-bg: linear-gradient(90deg, #fff8c6, #fff3a8); /* yellow-ish */
   --leaderboard-self-text: #1a1a1a; /* dark text on yellow */
   --leaderboard-self-glow: 0 0 18px rgba(255,230,120,0.55);
+  --primary: var(--accent); /* primary color used for title, version, leaderboard header and question */
 }
 *{box-sizing:border-box}
 body{
@@ -13,12 +14,8 @@ body{
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial;
   text-align:center
 }
-h1{margin:18px 0 6px;color:var(--accent)}
-#version {
-  color: var(--accent);
-  font-size: 0.75em;
-  margin-top: -6px;
-}
+h1 { margin:18px 0 6px; color:var(--primary); }
+#version { color: var(--primary); font-size: 0.75em; margin-top: -6px; }
 
 /* LOGIN */
 #login-screen{
@@ -123,7 +120,8 @@ h1{margin:18px 0 6px;color:var(--accent)}
   margin-top:80px;
   margin-bottom:30px;
   min-height:1.2em;
-  transition:transform .05s
+  transition:transform .05s;
+  color: var(--primary);
 }
 #timerBar{
   width:70%;
@@ -215,7 +213,7 @@ h1{margin:18px 0 6px;color:var(--accent)}
   text-align:center
 }
 #leaderboardContainer th{
-  color:var(--accent);
+  color:var(--primary);
   font-weight:600;
   border-bottom:2px solid #1e90ff33
 }

@@ -92,8 +92,24 @@
 
   <div id="settingsPanel" class="settings-panel" role="dialog" aria-hidden="true" style="display:none;">
     <h3 style="margin:0 0 8px 0;color:var(--accent)">Settings</h3>
-    <!-- Blank for now: add controls here later -->
-    <p style="color:var(--muted);margin:0">No settings yet.</p>
+    <!-- Placeholder settings (color pickers) -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+      <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px;">
+        <span>Background Color</span>
+        <input id="bgColorPicker" type="color" title="Choose background color" />
+      </label>
+
+      <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px;">
+        <span>Text / Accent Color</span>
+        <input id="textColorPicker" type="color" title="Choose text/accent color" />
+      </label>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="resetColorsBtn" style="background:var(--panel);border:1px solid #2a2f37;color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer">
+          Reset
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Entry point: auth imports utils, backend, game -->

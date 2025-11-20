@@ -163,3 +163,88 @@ if (settingsToggle) {
   });
 }
 // --- end NEW ---
+
+// --- NEW: color-picker settings wiring ---
+const bgPicker = document.getElementById("bgColorPicker");
+const textPicker = document.getElementById("textColorPicker");
+const resetColorsBtn = document.getElementById("resetColorsBtn");
+
+function normalizeColorToHex(raw) {
+  if (!raw) return null;
+  raw = raw.trim();
+  // already hex
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) {
+    // expand 3-char hex
+    if (raw.length === 4) {
+      return "#" + raw[1] + raw[1] + raw[2] + raw[2] + raw[3] + raw[3];
+    }
+    return raw;
+  }
+  // rgb(...) -> hex
+  const m = raw.match(/rgba?\s*\(\s*(\d+)[ ,]+(\d+)[ ,]+(\d+)/i);
+  if (m) {
+    const r = parseInt(m[1], 10), g = parseInt(m[2], 10), b = parseInt(m[3], 10);
+    const toHex = n => ("0" + n.toString(16)).slice(-2);
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+  return null;
+}
+
+function getCSSVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || null;
+}
+
+function applyColorSettings(bgColor, primaryColor, persist = true) {
+  if (bgColor) document.documentElement.style.setProperty('--bg', bgColor);
+  if (primaryColor) document.documentElement.style.setProperty('--primary', primaryColor);
+  // optional: also adjust fallback --accent so components using it react
+  if (primaryColor) document.documentElement.style.setProperty('--accent', primaryColor);
+  if (persist) {
+    if (bgColor) localStorage.setItem("fm_bg_color", bgColor);
+    if (primaryColor) localStorage.setItem("fm_primary_color", primaryColor);
+  }
+}
+
+function initColorPickers() {
+  // load persisted or computed values
+  const savedBg = localStorage.getItem("fm_bg_color");
+  const savedPrimary = localStorage.getItem("fm_primary_color");
+
+  const curBg = savedBg || normalizeColorToHex(getCSSVar('--bg')) || "#0e0f12";
+  const curPrimary = savedPrimary || normalizeColorToHex(getCSSVar('--primary')) || "#1e90ff";
+
+  // Apply current values to CSS (ensures UI matches)
+  applyColorSettings(curBg, curPrimary, false);
+
+  // Set pickers values
+  if (bgPicker) bgPicker.value = normalizeColorToHex(curBg) || "#0e0f12";
+  if (textPicker) textPicker.value = normalizeColorToHex(curPrimary) || "#1e90ff";
+}
+
+if (bgPicker) {
+  bgPicker.addEventListener("input", (e) => {
+    const v = e.target.value;
+    applyColorSettings(v, null, true);
+  });
+}
+if (textPicker) {
+  textPicker.addEventListener("input", (e) => {
+    const v = e.target.value;
+    // update primary/accent used by title, version, leaderboard headers and question numbers
+    applyColorSettings(null, v, true);
+  });
+}
+if (resetColorsBtn) {
+  resetColorsBtn.addEventListener("click", () => {
+    // reset to defaults (matching initial CSS root defaults)
+    const defaultBg = "#0e0f12";
+    const defaultPrimary = "#1e90ff";
+    applyColorSettings(defaultBg, defaultPrimary, true);
+    if (bgPicker) bgPicker.value = defaultBg;
+    if (textPicker) textPicker.value = defaultPrimary;
+  });
+}
+
+// initialize once DOM is ready
+try { initColorPickers(); } catch (e) { /* ignore */ }
+// --- end NEW ---
