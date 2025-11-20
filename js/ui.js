@@ -8,7 +8,7 @@ const backend = FM.backend || {};
 
 let currentScope = "all";
 let currentTime = "monthly";
-
+const hideSettings = true;
 // --- NEW: helper to update time-button UI state ---
 function highlightTimeButton(time) {
   if (!lbMonthlyBtn && !lbAllTimeBtn) return;
@@ -198,12 +198,17 @@ function toggleSettings() {
 }
 
 if (settingsToggle) {
-  // ensure the toggle is visible only when we have the element available
-  settingsToggle.style.display = "inline-flex";
-  settingsToggle.addEventListener("click", (e) => {
-    e.preventDefault();
-    toggleSettings();
-  });
+  if (hideSettings) {
+    // hide the gear and do not attach the click handler
+    settingsToggle.style.display = "none";
+  } else {
+    // ensure the toggle is visible only when we have the element available
+    settingsToggle.style.display = "inline-flex";
+    settingsToggle.addEventListener("click", (e) => {
+      e.preventDefault();
+      toggleSettings();
+    });
+  }
 }
 // --- end NEW ---
 
