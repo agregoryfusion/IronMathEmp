@@ -27,6 +27,8 @@ async function loadQuestions(force = false) {
   }
   const rows = await backend.fetchAndCacheQuestions(force);
   cachedQuestions = rows || [];
+  // DEBUG: surface totals so we can see if fetch returned everything
+  console.log("loadQuestions: cachedQuestions.length=", cachedQuestions.length);
   buildPlayers();
   rebuildAvailableDates();
   initDateSlider();
@@ -34,9 +36,16 @@ async function loadQuestions(force = false) {
 }
 
 function buildPlayers() {
+  // normalize names, skip empty/whitespace-only names
   const set = new Set();
-  cachedQuestions.forEach(r => set.add(r.playerName || ""));
-  const arr = Array.from(set).sort();
+  for (const r of cachedQuestions) {
+    const raw = (r.playerName ?? "").toString();
+    const name = raw.trim();
+    if (name) set.add(name);
+  }
+  const arr = Array.from(set).sort((a,b) => a.localeCompare(b));
+  // DEBUG: show how many unique players found
+  console.log("buildPlayers: unique players=", arr.length, arr.slice(0,10));
   playerSelect.innerHTML = "";
   const allOpt = document.createElement("option");
   allOpt.value = "__ALL__"; allOpt.textContent = "All players";
