@@ -27,7 +27,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebas
 import {
   getAuth, OAuthProvider, signInWithPopup,
   setPersistence, browserLocalPersistence, onAuthStateChanged,
-  // added redirect helpers
   signInWithRedirect, getRedirectResult
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
@@ -46,26 +45,27 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new OAuthProvider("microsoft.com");
 
-// Make persistence non-blocking so module doesn't stall
+// diagnostic at module load
+console.log("[auth] module loaded. auth:", !!auth, "provider:", !!provider);
+
 setPersistence(auth, browserLocalPersistence).catch((err) => {
-  console.warn("Could not set Firebase auth persistence; continuing without persistent session.", err);
+  console.warn("[auth] setPersistence failed:", err);
 });
 
-// Encourage account selection (helps some edge cases / popup flows)
 try {
   provider.setCustomParameters?.({ prompt: "select_account" });
 } catch (e) {
-  console.warn("Could not set provider parameters:", e);
+  console.warn("[auth] provider.setCustomParameters failed:", e);
 }
 
-// Process redirect result (in case signInWithRedirect was used)
 getRedirectResult(auth).then((result) => {
+  console.log("[auth] getRedirectResult:", !!result);
   if (result && result.user) {
-    console.log("Processed redirect sign-in result");
-    handleSignedIn(result.user).catch(err => console.warn("handleSignedIn after redirect failed:", err));
+    console.log("[auth] redirect result user:", result.user.email);
+    handleSignedIn(result.user).catch(err => console.warn("[auth] handleSignedIn after redirect failed:", err));
   }
 }).catch((err) => {
-  console.warn("getRedirectResult error:", err);
+  console.warn("[auth] getRedirectResult error:", err);
 });
 
 FM.auth = {
@@ -76,6 +76,7 @@ FM.auth = {
 };
 
 async function handleSignedIn(user) {
+  console.log("[auth] handleSignedIn called for:", user?.email);
   const email = user.email?.toLowerCase() || "";
   let isTeacher = false;
   let isStudent = false;
@@ -130,60 +131,82 @@ FM.ui = {
   showEmperor
 };
 
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    await handleSignedIn(user);
-  } else {
-    if (emperorScreen) emperorScreen.style.display = "none";
-    if (gameContainer) gameContainer.style.display = "none";
-    if (endScreen) endScreen.style.display = "none";
-    if (loginScreen) loginScreen.style.display = "flex";
-  }
-});
+try {
+  onAuthStateChanged(auth, async (user) => {
+    console.log("[auth] onAuthStateChanged; user:", user ? user.email : null);
+    if (user) {
+      await handleSignedIn(user);
+    } else {
+      if (emperorScreen) emperorScreen.style.display = "none";
+      if (gameContainer) gameContainer.style.display = "none";
+      if (endScreen) endScreen.style.display = "none";
+      if (loginScreen) loginScreen.style.display = "flex";
+    }
+  });
+} catch (e) {
+  console.error("[auth] onAuthStateChanged failed:", e);
+}
 
-if (loginBtn) {
-  loginBtn.addEventListener("click", async ()=>{
-    console.log("Login button clicked - attempting sign-in");
+// attachLoginHandler ensures the click handler is bound and logs extensively
+function attachLoginHandler() {
+  const btn = document.getElementById("loginBtn");
+  if (!btn) {
+    console.warn("[auth] attachLoginHandler: loginBtn not found");
+    return;
+  }
+  if (btn._fmHandlerAttached) return;
+  btn._fmHandlerAttached = true;
+
+  btn.addEventListener("click", async (ev) => {
+    ev.preventDefault();
+    console.log("[auth] loginBtn clicked");
+    if (!auth || !provider) {
+      console.error("[auth] auth or provider missing");
+      if (loginStatus) loginStatus.textContent = "Auth not initialized";
+      return;
+    }
     try {
       const result = await signInWithPopup(auth, provider);
+      console.log("[auth] signInWithPopup result:", !!result);
       if (result && result.user) {
         await handleSignedIn(result.user);
+      } else {
+        console.warn("[auth] signInWithPopup returned no user, falling back to redirect");
+        await signInWithRedirect(auth, provider);
       }
-    } catch(e) {
-      console.error("Sign-in (popup) error:", e);
-      const msg = (e && e.message) ? e.message.toLowerCase() : "";
+    } catch (e) {
+      console.error("[auth] signInWithPopup error:", e);
+      if (loginStatus) loginStatus.textContent = "Sign-in failed: " + (e?.message || e);
+      const msg = (e && e.message) ? String(e.message).toLowerCase() : "";
       const code = e?.code || "";
       const popupBlocked = /popup/i.test(msg) || /popup/i.test(code) || code === "auth/popup-blocked" || code === "auth/cancelled-popup-request";
-      // Fallback to redirect sign-in if popup blocked or similar
       if (popupBlocked) {
         try {
-          if (loginStatus) loginStatus.textContent = "Popup blocked — redirecting to sign-in...";
-          console.warn("Falling back to signInWithRedirect due to popup issue.");
+          console.warn("[auth] popup blocked — using redirect fallback");
+          if (loginStatus) loginStatus.textContent = "Popup blocked — redirecting...";
           await signInWithRedirect(auth, provider);
-          // Redirect will navigate away; getRedirectResult above will handle completion.
         } catch (re) {
-          console.error("signInWithRedirect failed:", re);
-          if (loginStatus) loginStatus.textContent = "Sign-in failed: " + (re?.message || re);
+          console.error("[auth] signInWithRedirect failed:", re);
+          if (loginStatus) loginStatus.textContent = "Sign-in redirect failed: " + (re?.message || re);
         }
-      } else {
-        if (loginStatus) loginStatus.textContent = "Sign-in failed: " + (e?.message || e);
       }
     }
   });
 }
 
-// new: Data button navigates to the data page (only visible to teachers)
-if (dataBtn) {
-  dataBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    // open the standalone data page that will query the backend cache
-    window.location.href = "data.html";
-  });
+// Attach now or when DOM ready
+attachLoginHandler();
+if (!loginBtn) {
+  document.addEventListener("DOMContentLoaded", () => {
+    console.log("[auth] DOMContentLoaded - attempting attachLoginHandler");
+    attachLoginHandler();
+  }, { once: true });
 }
 
-if (playBtn) {
-  playBtn.addEventListener("click", ()=>{
-    emperorScreen.style.display = "none";
-    FM.game.startGame();
-  });
-}
+// re-add Data & Play wiring (safe id reads)
+(function attachOtherButtons(){
+  const data = document.getElementById("dataBtn");
+  if (data) data.addEventListener("click", (e) => { e.preventDefault(); window.location.href = "data.html"; });
+  const play = document.getElementById("playBtn");
+  if (play) play.addEventListener("click", () => { if (emperorScreen) emperorScreen.style.display = "none"; FM.game.startGame(); });
+})();

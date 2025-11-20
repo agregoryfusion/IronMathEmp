@@ -579,6 +579,8 @@ async function fetchAndCacheQuestions(forceRefresh = false) {
       const idCandidates = ['id', 'question_id', 'questionid', 'qid', 'row_id', 'created_at', 'date_added'];
       const idKey = idCandidates.find(k => Object.prototype.hasOwnProperty.call(sample, k));
 
+      let usedKeyset = false;
+
       if (idKey) {
         // Use keyset pagination using gt on the detected idKey (works even if server enforces row caps)
         let lastSeen = firstPage[firstPage.length - 1][idKey];
@@ -586,6 +588,7 @@ async function fetchAndCacheQuestions(forceRefresh = false) {
           // fallback to offset paging if value missing
           console.warn("fetchAndCacheQuestions: detected idKey but lastSeen is null; falling back to ranged paging", idKey);
         } else {
+          usedKeyset = true;
           while (true) {
             const { data: page, error: pageErr } = await supabase
               .from("questions")
@@ -600,4 +603,41 @@ async function fetchAndCacheQuestions(forceRefresh = false) {
             }
             if (!page || page.length === 0) break;
             allRows = allRows.concat(page);
-            if
+            lastSeen = page[page.length - 1][idKey];
+            if (page.length < pageSize) break;
+          }
+        }
+      }
+
+      // If keyset not used (no suitable idKey or fallback), use offset paging
+      if (!usedKeyset) {
+        let offset = pageSize;
+        while (true) {
+          const { data: page, error: pageErr } = await supabase
+            .from("questions")
+            .select("*")
+            .range(offset, offset + pageSize - 1);
+
+          if (pageErr) {
+            console.error("Questions table ranged fetch failed:", pageErr);
+            break;
+          }
+          if (!page || page.length === 0) break;
+          allRows = allRows.concat(page);
+          if (page.length < pageSize) break;
+          offset += pageSize;
+        }
+      }
+
+      console.log("fetchAndCacheQuestions: fetched rows=", allRows.length);
+    }
+
+    // Cache the raw rows; callers can normalize as needed
+    cachedQuestions = allRows.slice(); // shallow copy to avoid external mutation
+    cachedQuestionsFetchTime = Date.now();
+    return cachedQuestions;
+  } catch (e) {
+    console.error("fetchAndCacheQuestions exception:", e);
+    return null;
+  }
+}
