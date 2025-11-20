@@ -1,0 +1,366 @@
+@page "/"
+@using System.Diagnostics
+@using System.Timers
+
+<PageTitle>Fusion Fast Math</PageTitle>
+
+<div class="hero-card">
+    <div>
+        <p class="eyebrow">Multiplication training, rebuilt for Blazor.</p>
+        <h2>Become the Emperor of Multiplication</h2>
+        <p>Race the clock through adaptive multiplication questions. Track your sessions locally and practice offline or online.</p>
+        <div class="form-grid">
+            <label>
+                <span>Display name</span>
+                <input @bind-value="playerName" @bind-value:event="oninput" placeholder="Player" />
+            </label>
+            <div class="button-row">
+                <button class="primary" @onclick="StartGame" disabled="@gameRunning">Play</button>
+                <button class="ghost" @onclick="ResetSession" disabled="@gameRunning">Reset</button>
+            </div>
+        </div>
+        <p class="meta">Session ID: @sessionId</p>
+    </div>
+</div>
+
+@if (gameRunning)
+{
+    <section class="game-card">
+        <header class="game-header">
+            <div>
+                <p class="eyebrow">Stage @stage</p>
+                <h3>Question @questionNumber of @MaxQuestions</h3>
+            </div>
+            <div class="timer" role="progressbar" aria-valuemin="0" aria-valuemax="@TimerSeconds" aria-valuenow="@timeLeft">
+                <div class="fill" style="width:@($"{TimerPercent}%")"></div>
+                <span>@timeLeft.ToString("0.0") s</span>
+            </div>
+        </header>
+
+        <div class="question-box">
+            <p class="question">@currentQuestion?.Display ?? ""</p>
+            <label class="answer-row">
+                <span>Your answer</span>
+                <input @bind-value="answerText" @bind-value:event="oninput" @onkeypress="HandleKey" inputmode="numeric" autocomplete="off" placeholder="?" />
+            </label>
+            <div class="actions">
+                <button class="primary" @onclick="SubmitAnswer">Submit</button>
+                <span class="status">@statusMessage</span>
+            </div>
+        </div>
+    </section>
+}
+
+@if (sessionCompleted)
+{
+    <section class="summary-card">
+        <header>
+            <div>
+                <p class="eyebrow">Session complete</p>
+                <h3>@playerName's results</h3>
+            </div>
+            <button class="primary" @onclick="RestartFromSummary">Play again</button>
+        </header>
+        <div class="summary-grid">
+            <div>
+                <p class="label">Questions answered</p>
+                <p class="value">@correctAnswers / @MaxQuestions</p>
+            </div>
+            <div>
+                <p class="label">Total time</p>
+                <p class="value">@TotalTime.ToString("0.00") s</p>
+            </div>
+            <div>
+                <p class="label">Average time</p>
+                <p class="value">@AverageTime.ToString("0.00") s</p>
+            </div>
+            <div>
+                <p class="label">Session ID</p>
+                <p class="value">@sessionId</p>
+            </div>
+        </div>
+        <p class="mistakes">Mistakes made: @_results.Sum(r => r.Mistakes)</p>
+    </section>
+}
+
+<section class="summary-card">
+    <header>
+        <div>
+            <p class="eyebrow">Local leaderboard</p>
+            <h3>Recent sessions</h3>
+        </div>
+    </header>
+    <table class="leaderboard">
+        <thead>
+            <tr><th>#</th><th>Player</th><th>Questions</th><th>Total time (s)</th><th>Avg (s)</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+            @if (_leaderboard.Count == 0)
+            {
+                <tr><td colspan="6" class="muted">Play a round to see results.</td></tr>
+            }
+            else
+            {
+                @foreach (var (entry, index) in _leaderboard.Select((v, i) => (v, i + 1)))
+                {
+                    <tr>
+                        <td>@index</td>
+                        <td>@entry.PlayerName</td>
+                        <td>@entry.Questions</td>
+                        <td>@entry.TotalTime.ToString("0.00")</td>
+                        <td>@entry.Average.ToString("0.00")</td>
+                        <td>@entry.Timestamp.ToLocalTime().ToString("MMM dd, HH:mm")</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</section>
+
+@code {
+    private const int TimerSeconds = 10;
+    private const int MaxQuestions = 12;
+    private readonly Random _rand = new();
+
+    private bool gameRunning;
+    private bool sessionCompleted;
+    private string playerName = "Player";
+    private string sessionId = "Not started";
+    private Question? currentQuestion;
+    private string answerText = string.Empty;
+    private string statusMessage = string.Empty;
+    private int stage = 8;
+    private int questionNumber;
+    private int correctAnswers;
+    private int mistakesThisQuestion;
+    private double timeLeft = TimerSeconds;
+    private Timer? _timer;
+    private Stopwatch _stopwatch = new();
+    private readonly List<QuestionResult> _results = new();
+    private readonly List<SessionEntry> _leaderboard = new();
+
+    private string TimerPercent => Math.Clamp((timeLeft / TimerSeconds) * 100, 0, 100).ToString("0.##");
+    private double TotalTime => _results.Sum(r => r.TimeTaken);
+    private double AverageTime => _results.Count == 0 ? 0 : _results.Average(r => r.TimeTaken);
+
+    private void StartGame()
+    {
+        ResetSessionState();
+        sessionId = BuildSessionId(playerName);
+        gameRunning = true;
+        sessionCompleted = false;
+        BeginQuestion();
+    }
+
+    private void ResetSession()
+    {
+        sessionCompleted = false;
+        gameRunning = false;
+        statusMessage = string.Empty;
+        _timer?.Stop();
+        _results.Clear();
+        questionNumber = 0;
+        correctAnswers = 0;
+        mistakesThisQuestion = 0;
+        timeLeft = TimerSeconds;
+    }
+
+    private void RestartFromSummary()
+    {
+        ResetSession();
+        StartGame();
+    }
+
+    private void BeginQuestion()
+    {
+        currentQuestion = GenerateQuestion();
+        mistakesThisQuestion = 0;
+        answerText = string.Empty;
+        statusMessage = string.Empty;
+        questionNumber++;
+        timeLeft = TimerSeconds;
+
+        _stopwatch.Restart();
+
+        _timer?.Dispose();
+        _timer = new Timer(50);
+        _timer.Elapsed += OnTick;
+        _timer.AutoReset = true;
+        _timer.Start();
+    }
+
+    private void OnTick(object? sender, ElapsedEventArgs e)
+    {
+        timeLeft = Math.Max(0, TimerSeconds - _stopwatch.Elapsed.TotalSeconds);
+        InvokeAsync(StateHasChanged);
+
+        if (timeLeft <= 0)
+        {
+            _timer?.Stop();
+            InvokeAsync(() => CompleteQuestion(success: false));
+        }
+    }
+
+    private Question GenerateQuestion()
+    {
+        var max = (int)Math.Floor(stage * 1.5);
+        int a, b;
+        do
+        {
+            a = _rand.Next(1, max + 1);
+            b = _rand.Next(1, max + 1);
+        } while (a > stage && b > stage);
+
+        if (_rand.NextDouble() < 0.5)
+        {
+            (a, b) = (b, a);
+        }
+
+        return new Question(a, b);
+    }
+
+    private void SubmitAnswer()
+    {
+        if (!gameRunning || currentQuestion is null)
+        {
+            return;
+        }
+
+        if (!int.TryParse(answerText.Trim(), out var value))
+        {
+            mistakesThisQuestion++;
+            statusMessage = "Please enter a number.";
+            return;
+        }
+
+        if (value == currentQuestion.Product)
+        {
+            CompleteQuestion(success: true);
+        }
+        else
+        {
+            mistakesThisQuestion++;
+            statusMessage = "Not quite, try again.";
+        }
+    }
+
+    private void CompleteQuestion(bool success)
+    {
+        _timer?.Stop();
+        _stopwatch.Stop();
+
+        var elapsed = Math.Clamp(_stopwatch.Elapsed.TotalSeconds, 0, TimerSeconds);
+        _results.Add(new QuestionResult
+        {
+            QuestionNumber = questionNumber,
+            A = currentQuestion?.A ?? 0,
+            B = currentQuestion?.B ?? 0,
+            Stage = stage,
+            TimeTaken = elapsed,
+            Mistakes = mistakesThisQuestion,
+            Success = success
+        });
+
+        if (!success)
+        {
+            statusMessage = "Time's up!";
+            FinishSession();
+            return;
+        }
+
+        correctAnswers++;
+        if (questionNumber % 4 == 0)
+        {
+            stage++;
+        }
+
+        if (questionNumber >= MaxQuestions)
+        {
+            FinishSession();
+        }
+        else
+        {
+            BeginQuestion();
+        }
+    }
+
+    private void FinishSession()
+    {
+        gameRunning = false;
+        sessionCompleted = true;
+        _timer?.Stop();
+
+        var entry = new SessionEntry
+        {
+            PlayerName = string.IsNullOrWhiteSpace(playerName) ? "Player" : playerName.Trim(),
+            Questions = correctAnswers,
+            TotalTime = TotalTime,
+            Average = AverageTime,
+            SessionId = sessionId,
+            Timestamp = DateTimeOffset.Now
+        };
+
+        _leaderboard.Add(entry);
+        _leaderboard.Sort((a, b) => a.TotalTime.CompareTo(b.TotalTime));
+
+        if (_leaderboard.Count > 20)
+        {
+            _leaderboard.RemoveRange(20, _leaderboard.Count - 20);
+        }
+    }
+
+    private void HandleKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SubmitAnswer();
+        }
+    }
+
+    private void ResetSessionState()
+    {
+        _timer?.Stop();
+        _results.Clear();
+        questionNumber = 0;
+        correctAnswers = 0;
+        stage = 8;
+        mistakesThisQuestion = 0;
+        timeLeft = TimerSeconds;
+        statusMessage = string.Empty;
+    }
+
+    private static string BuildSessionId(string? name)
+    {
+        var parts = (name ?? "Player").Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var first = parts.Length > 0 ? parts[0] : "Player";
+        var second = parts.Length > 1 ? parts[1] : string.Empty;
+        return $"{first} {second} {DateTime.Now:MM-dd-yyyy HH:mm}";
+    }
+
+    private record Question(int A, int B)
+    {
+        public int Product => A * B;
+        public string Display => $"{A} × {B}";
+    }
+
+    private class QuestionResult
+    {
+        public int QuestionNumber { get; set; }
+        public int A { get; set; }
+        public int B { get; set; }
+        public int Stage { get; set; }
+        public double TimeTaken { get; set; }
+        public int Mistakes { get; set; }
+        public bool Success { get; set; }
+    }
+
+    private class SessionEntry
+    {
+        public string PlayerName { get; set; } = "Player";
+        public int Questions { get; set; }
+        public double TotalTime { get; set; }
+        public double Average { get; set; }
+        public string SessionId { get; set; } = string.Empty;
+        public DateTimeOffset Timestamp { get; set; }
+    }
+}
