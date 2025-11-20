@@ -242,11 +242,85 @@ function applyColorSettings(bgColor, primaryColor, persist = true) {
   if (primaryColor) document.documentElement.style.setProperty('--primary', primaryColor);
   // optional: also adjust fallback --accent so components using it react
   if (primaryColor) document.documentElement.style.setProperty('--accent', primaryColor);
+  // ensure any derived / secondary vars used by gradients or timer elements also update
+ if (primaryColor) {
+    // some CSS may use --primary-2 or --timer-end; keep them in sync so gradients update fully
+    document.documentElement.style.setProperty('--primary-2', primaryColor);
+    document.documentElement.style.setProperty('--timer-end', primaryColor);
+  }
   if (persist) {
     if (bgColor) localStorage.setItem("fm_bg_color", bgColor);
     if (primaryColor) localStorage.setItem("fm_primary_color", primaryColor);
   }
+  // Update inline colors for any active controls and timer elements so hardcoded CSS does not win
+  try { updateDerivedUIColors(); } catch (e) { /* ignore */ }
 }
+ 
+// update UI parts that may be using hard-coded colors so they reflect the current --primary
+function updateDerivedUIColors() {
+  const primary = normalizeColorToHex(getCSSVar('--primary')) || "#1e90ff";
+
+  // update active buttons text color (override CSS that might be hardcoded)
+  const btns = [lbMonthlyBtn, lbAllTimeBtn, viewAllBtn, viewStudentsBtn, viewTeachersBtn];
+  btns.forEach(b => {
+    if (!b) return;
+    if (b.classList.contains('active')) {
+      b.style.color = primary;
+     // also ensure SVGs/icons inherit currentColor
+      b.style.fill = 'currentColor';
+    } else {
+      b.style.color = '';
+      b.style.fill = '';
+    }
+  });
+
+  // Common timer selectors used in the UI — set full-gradient using primary for both stops
+  const timerSelectors = ['#timer', '.timer', '#timerFill', '.timer-fill', '.timer-inner', '.timer-gradient'];
+  timerSelectors.forEach(sel => {
+    document.querySelectorAll(sel).forEach(el => {
+      // If the element uses a background-image gradient, override with a gradient that uses the primary for both stops
+      // This ensures the whole timer gradient reflects the chosen color.
+      el.style.backgroundImage = `linear-gradient(90deg, ${primary} 0%, ${primary} 100%)`;
+      // also update color for text inside timer if present
+      el.style.color = primary;
+    });
+  });
+}
+
+// ...existing code...
+function highlightScopeButton(scope) {
+  viewAllBtn.classList.remove("active");
+  viewStudentsBtn.classList.remove("active");
+  viewTeachersBtn.classList.remove("active");
+ 
+  if (scope === "all") viewAllBtn.classList.add("active");
+  if (scope === "students") viewStudentsBtn.classList.add("active");
+  if (scope === "teachers") viewTeachersBtn.classList.add("active");
+
+  // ensure active button color updates immediately
+  try { updateDerivedUIColors(); } catch (e) { /* ignore */ }
+}
+ 
+// Ensure the "Everyone" button glows by default on load
+// (call after highlightScopeButton is declared)
+highlightScopeButton(currentScope);
+// ...existing code...
+function highlightTimeButton(time) {
+  if (!lbMonthlyBtn && !lbAllTimeBtn) return;
+  lbMonthlyBtn?.classList.remove("active");
+  lbAllTimeBtn?.classList.remove("active");
+  if ((time || "").toString().trim().toLowerCase() === "alltime") {
+    lbAllTimeBtn?.classList.add("active");
+  } else {
+    lbMonthlyBtn?.classList.add("active");
+  }
+  // ensure active time button uses current primary color immediately
+  try { updateDerivedUIColors(); } catch (e) { /* ignore */ }
+}
+ // --- end NEW ---
+ 
+// initial time-button state
+highlightTimeButton(currentTime);
 
 function initColorPickers() {
   // load persisted or computed values
