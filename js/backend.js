@@ -161,15 +161,32 @@ function updateCachedLeaderboardWithNewScore(newEntry) {
     });
   }
 
-  // Update MONTHLY cache (allow multiple entries per player)
-  if (cachedMonthlyLeaderboard) {
-    // Only add if the entry is in the current month (we assume dateAdded ms or fallback to now)
+  // Update MONTHLY cache — maintain best-per-player (do NOT allow duplicates)
+  {
+    // Only consider the entry if it's in the current month
     const dateMs = newEntry.dateAdded || Date.now();
     const d = new Date(dateMs);
     const now = new Date();
     if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
-      cachedMonthlyLeaderboard.push(newEntry);
-      // sort monthly
+      // initialize monthly cache if absent
+      if (!cachedMonthlyLeaderboard) cachedMonthlyLeaderboard = [];
+
+      const idx = cachedMonthlyLeaderboard.findIndex(item => (item.playerName || "").trim().toLowerCase() === key);
+      if (idx !== -1) {
+        const old = cachedMonthlyLeaderboard[idx];
+        const isBetter =
+          newEntry.questionsAnswered > (old.questionsAnswered ?? 0) ||
+          (newEntry.questionsAnswered === old.questionsAnswered && newEntry.totalTime < (old.totalTime ?? Infinity)) ||
+          (newEntry.questionsAnswered === old.questionsAnswered && newEntry.totalTime === old.totalTime && (newEntry.dateAdded || 0) > (old.dateAdded || 0));
+        if (isBetter) {
+          cachedMonthlyLeaderboard[idx] = newEntry;
+        }
+      } else {
+        // add new best for this player in month
+        cachedMonthlyLeaderboard.push(newEntry);
+      }
+
+      // sort monthly best-per-player
       cachedMonthlyLeaderboard.sort((a, b) => {
         if (b.questionsAnswered === a.questionsAnswered) return a.totalTime - b.totalTime;
         return b.questionsAnswered - a.questionsAnswered;
