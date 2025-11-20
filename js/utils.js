@@ -1,7 +1,7 @@
 // utils.js - shared helpers & constants
 const FM = (window.FastMath = window.FastMath || {});
 
-FM.GAME_VERSION = "1.0.81";
+FM.GAME_VERSION = "1.0.82";
 
 function cap(s){
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
