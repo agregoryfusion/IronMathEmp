@@ -391,7 +391,7 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
   lastLoadedTimeFilter = timeFilter;
 
   // Show loading status immediately
-  if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
+  //if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
 
   // fetch appropriate cache
   if (timeFilter === "alltime") {

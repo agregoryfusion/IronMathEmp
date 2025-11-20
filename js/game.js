@@ -263,7 +263,7 @@ function gameOver(){
     lbWrap.style.display = "block";
     lbWrap.classList.add("show");
   }
-  if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
+ // if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
   backend.loadLeaderboard("all", true);
 
   const totalTrue = totalTimeTrue;
