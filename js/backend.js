@@ -541,23 +541,38 @@ async function insertLeaderboardRow(lbRow) {
   }
 }
 
-// NEW: questions fetcher
+// NEW: questions fetcher (paginated to avoid server-side row caps)
 async function fetchAndCacheQuestions(forceRefresh = false) {
   const now = Date.now();
   if (!forceRefresh && cachedQuestions && (now - cachedQuestionsFetchTime) < QUESTIONS_CACHE_DURATION) {
     return cachedQuestions;
   }
   try {
-    const { data, error } = await supabase
-      .from("questions")
-      .select("*")
-      .limit(20000); // adjust if you expect more rows
+    const pageSize = 5000; // fetch in chunks to avoid server caps
+    let from = 0;
+    let allRows = [];
 
-    if (error) {
-      console.error("Questions table fetch failed:", error);
-      return null;
+    while (true) {
+      const to = from + pageSize - 1;
+      const { data, error } = await supabase
+        .from("questions")
+        .select("*")
+        .range(from, to);
+
+      if (error) {
+        console.error("Questions table fetch failed (range)", from, to, error);
+        return null;
+      }
+
+      if (!data || data.length === 0) break;
+
+      allRows = allRows.concat(data);
+
+      if (data.length < pageSize) break; // last page
+      from += pageSize;
     }
-    const rows = (data || []).map(r => ({
+
+    const rows = (allRows || []).map(r => ({
       a: Number(r.a),
       b: Number(r.b),
       dateMs: r.date_added ? (isFinite(Date.parse(r.date_added)) ? Date.parse(r.date_added) : Number(r.date_added)) : null,
@@ -566,6 +581,7 @@ async function fetchAndCacheQuestions(forceRefresh = false) {
       timeTaken: Number(r.time_taken ?? r.timeTaken ?? 0),
       playerName: r.player_name || r.playerName || (r.name || "")
     }));
+
     cachedQuestions = rows;
     cachedQuestionsFetchTime = Date.now();
     return cachedQuestions;
