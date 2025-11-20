@@ -96,3 +96,65 @@ if (backend && typeof backend.loadLeaderboard === "function") {
 
 // initial time-button state
 highlightTimeButton(currentTime);
+
+// --- NEW: settings panel toggle (gear -> X) ---
+const settingsToggle = document.getElementById("settingsToggle");
+const settingsPanel = document.getElementById("settingsPanel");
+let settingsOpen = false;
+let _prevLbState = null;
+
+function getGearSVG() {
+  return `
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09c.7 0 1.3-.42 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 0 1 6.9 2.1l.06.06c.5.5 1.2.67 1.82.33.5-.27 1.07-.33 1.6-.18V2a2 2 0 0 1 4 0v.09c.53-.15 1.1-.09 1.6.18.62.34 1.32.17 1.82-.33l.06-.06A2 2 0 0 1 20 6.1l-.06.06c-.27.5-.33 1.07-.18 1.6.24.59.9 1 1.51 1H21a2 2 0 0 1 0 4h-.09c-.7 0-1.3.42-1.51 1z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+}
+function getCloseSVG() {
+  return `
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+}
+
+function openSettings() {
+  if (!settingsPanel || !settingsToggle) return;
+  // save previous leaderboard visibility
+  if (window.FastMath && document.getElementById("leaderboardContainer")) {
+    const lb = document.getElementById("leaderboardContainer");
+    _prevLbState = { display: lb.style.display || "", hasShow: lb.classList.contains("show") };
+    lb.style.display = "none";
+    lb.classList.remove("show");
+  }
+  settingsPanel.setAttribute("aria-hidden", "false");
+  settingsPanel.style.display = "block";
+  settingsToggle.innerHTML = getCloseSVG();
+  settingsToggle.setAttribute("aria-label", "Close settings");
+  settingsOpen = true;
+}
+
+function closeSettings() {
+  if (!settingsPanel || !settingsToggle) return;
+  settingsPanel.setAttribute("aria-hidden", "true");
+  settingsPanel.style.display = "none";
+  const lb = document.getElementById("leaderboardContainer");
+  if (lb) {
+    lb.style.display = (_prevLbState && _prevLbState.display) ? _prevLbState.display : "block";
+    if (_prevLbState && _prevLbState.hasShow) lb.classList.add("show"); else lb.classList.remove("show");
+  }
+  settingsToggle.innerHTML = getGearSVG();
+  settingsToggle.setAttribute("aria-label", "Open settings");
+  settingsOpen = false;
+}
+
+function toggleSettings() {
+  if (settingsOpen) closeSettings(); else openSettings();
+}
+
+if (settingsToggle) {
+  settingsToggle.addEventListener("click", (e) => {
+    e.preventDefault();
+    toggleSettings();
+  });
+}
+// --- end NEW ---

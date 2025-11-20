@@ -294,3 +294,52 @@ h1{margin:18px 0 6px;color:var(--accent)}
   100% { transform: scale(1); box-shadow: 0 0 12px rgba(255,230,120,0.45); }
 }
 
+/* ensure end-screen can contain the top-right toggle */
+#end-screen {
+  position: relative;
+}
+
+/* Settings toggle (gear) positioned top-right of end-screen */
+.settings-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .12s ease, background .12s ease;
+  z-index: 1100;
+}
+.settings-toggle:hover {
+  transform: scale(1.05);
+  color: var(--accent2);
+}
+
+/* Close (X) state styling can reuse same button; toggling is handled by JS (innerSVG swap) */
+
+/* Settings panel popup (simple card) */
+.settings-panel {
+  position: absolute;
+  top: 48px;
+  right: 12px;
+  width: 320px;
+  max-width: calc(100% - 32px);
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  border: 1px solid #2a2f37;
+  z-index: 1090;
+  color: var(--text);
+}
+
+/* hidden by default; .show added by JS to display */
+.settings-panel[aria-hidden="true"] { display: none; }
+.settings-panel[aria-hidden="false"] { display: block; }
+
