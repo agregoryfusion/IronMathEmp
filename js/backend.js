@@ -22,6 +22,14 @@ let cachedEmperorData = null;
 let lastLeaderboardFetchTime = 0;
 const LEADERBOARD_CACHE_DURATION = 60000; // 60s
 
+// NEW: separate caches for all-time and monthly
+let cachedAllTimeLeaderboard = null;
+let cachedAllTimeFetchTime = 0;
+let cachedMonthlyLeaderboard = null;
+let cachedMonthlyFetchTime = 0;
+// Track last requested timeFilter so view buttons can reuse the same cache
+let lastLoadedTimeFilter = "monthly";
+
 async function recordUserLogin(email, name) {
   const nowIso = new Date().toISOString();
 
@@ -131,35 +139,52 @@ function updateCachedLeaderboardWithNewScore(newEntry) {
   if (!newEntry?.playerName) return;
 
   const key = (newEntry.playerName || "").trim().toLowerCase();
-  if (!cachedLeaderboardData) cachedLeaderboardData = [];
 
-  const existingIndex = cachedLeaderboardData.findIndex(
-    d => (d.playerName || "").trim().toLowerCase() === key
-  );
-
-  if (existingIndex !== -1) {
-    const old = cachedLeaderboardData[existingIndex];
-    const isBetter =
-      newEntry.questionsAnswered > (old.questionsAnswered ?? 0) ||
-      (newEntry.questionsAnswered === old.questionsAnswered &&
-        newEntry.totalTime < (old.totalTime ?? Infinity));
-
-    if (isBetter) {
-      cachedLeaderboardData[existingIndex] = newEntry;
+  // Update ALL-TIME cache (best-per-player)
+  if (cachedAllTimeLeaderboard) {
+    const idx = cachedAllTimeLeaderboard.findIndex(d => (d.playerName || "").trim().toLowerCase() === key);
+    if (idx !== -1) {
+      const old = cachedAllTimeLeaderboard[idx];
+      const isBetter =
+        newEntry.questionsAnswered > (old.questionsAnswered ?? 0) ||
+        (newEntry.questionsAnswered === old.questionsAnswered && newEntry.totalTime < (old.totalTime ?? Infinity)) ||
+        (newEntry.questionsAnswered === old.questionsAnswered && newEntry.totalTime === old.totalTime && (newEntry.dateAdded || 0) > (old.dateAdded || 0));
+      if (isBetter) cachedAllTimeLeaderboard[idx] = newEntry;
+    } else {
+      // No existing best for this player — add
+      cachedAllTimeLeaderboard.push(newEntry);
     }
-  } else {
-    cachedLeaderboardData.push(newEntry);
+    // sort best-per-player
+    cachedAllTimeLeaderboard.sort((a, b) => {
+      if (b.questionsAnswered === a.questionsAnswered) return a.totalTime - b.totalTime;
+      return b.questionsAnswered - a.questionsAnswered;
+    });
   }
 
-  cachedLeaderboardData.sort((a, b) => {
-    if (b.questionsAnswered === a.questionsAnswered)
-      return a.totalTime - b.totalTime;
-    return b.questionsAnswered - a.questionsAnswered;
-  });
+  // Update MONTHLY cache (allow multiple entries per player)
+  if (cachedMonthlyLeaderboard) {
+    // Only add if the entry is in the current month (we assume dateAdded ms or fallback to now)
+    const dateMs = newEntry.dateAdded || Date.now();
+    const d = new Date(dateMs);
+    const now = new Date();
+    if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+      cachedMonthlyLeaderboard.push(newEntry);
+      // sort monthly
+      cachedMonthlyLeaderboard.sort((a, b) => {
+        if (b.questionsAnswered === a.questionsAnswered) return a.totalTime - b.totalTime;
+        return b.questionsAnswered - a.questionsAnswered;
+      });
+    }
+  }
 
-  cachedEmperorData = cachedLeaderboardData.filter(d => d.isStudent === true);
-
-  renderLeaderboard(applyLeaderboardFilter(cachedLeaderboardData, "all"));
+  // If the currently displayed list is the one we updated, re-render filtered view
+  const active = lastLoadedTimeFilter === "alltime" ? cachedAllTimeLeaderboard : cachedMonthlyLeaderboard;
+  if (active) {
+    // reuse existing applyLeaderboardFilter to apply student/teacher filtering
+    const scope = (document.querySelector(".lb-scope-active")?.dataset?.scope) || "all";
+    const filtered = applyLeaderboardFilter(active, scope);
+    renderLeaderboard(filtered);
+  }
 }
 
 async function fetchAndCacheLeaderboard(forceRefresh = false) {
@@ -253,144 +278,132 @@ function renderLeaderboard(data) {
   }
 }
 
+async function fetchAllTimeLeaderboard(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && cachedAllTimeLeaderboard && (now - cachedAllTimeFetchTime) < LEADERBOARD_CACHE_DURATION) return;
+  const { data, error } = await supabase
+    .from("leaderboard")
+    .select("*")
+    .order("questions_answered", { ascending: false })
+    .order("total_time_seconds", { ascending: true })
+    .limit(5000);
+
+  if (error) {
+    console.error("All-time leaderboard fetch failed:", error);
+    return;
+  }
+
+  const rows = (data || [])
+    .filter(r => !!r.player_name)
+    .map(r => ({
+      playerName: r.player_name,
+      questionsAnswered: Number(r.questions_answered ?? 0),
+      totalTime: Number(r.total_time_seconds ?? 0),
+      penaltyTime: Number(r.penalty_time_seconds ?? 0),
+      dateAdded: r.date_added ? new Date(r.date_added).getTime() : null,
+      isTeacher: r.is_teacher ?? false,
+      isStudent: r.is_student ?? false,
+      stageReached: r.stage_reached ?? null
+    }));
+
+  // reduce to best-per-player
+  const bestByKey = new Map();
+  for (const r of rows) {
+    const k = (r.playerName || "").trim().toLowerCase();
+    const existing = bestByKey.get(k);
+    if (!existing) bestByKey.set(k, r);
+    else {
+      if (
+        r.questionsAnswered > existing.questionsAnswered ||
+        (r.questionsAnswered === existing.questionsAnswered && r.totalTime < existing.totalTime) ||
+        (r.questionsAnswered === existing.questionsAnswered && r.totalTime === existing.totalTime && (r.dateAdded || 0) > (existing.dateAdded || 0))
+      ) {
+        bestByKey.set(k, r);
+      }
+    }
+  }
+
+  cachedAllTimeLeaderboard = Array.from(bestByKey.values());
+  cachedAllTimeLeaderboard.sort((a, b) => {
+    if (b.questionsAnswered === a.questionsAnswered) return a.totalTime - b.totalTime;
+    return b.questionsAnswered - a.questionsAnswered;
+  });
+  cachedAllTimeFetchTime = now;
+}
+
+async function fetchMonthlyLeaderboard(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && cachedMonthlyLeaderboard && (now - cachedMonthlyFetchTime) < LEADERBOARD_CACHE_DURATION) return;
+
+  // fetch only current calendar month server-side
+  const nowDate = new Date();
+  const startOfMonth = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).toISOString();
+  const startOfNextMonth = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 1).toISOString();
+
+  const { data, error } = await supabase
+    .from("leaderboard")
+    .select("*")
+    .gte("date_added", startOfMonth)
+    .lt("date_added", startOfNextMonth)
+    .order("questions_answered", { ascending: false })
+    .order("total_time_seconds", { ascending: true })
+    .limit(5000);
+
+  if (error) {
+    console.error("Monthly leaderboard fetch failed:", error);
+    return;
+  }
+
+  cachedMonthlyLeaderboard = (data || [])
+    .filter(r => !!r.player_name)
+    .map(r => ({
+      playerName: r.player_name,
+      questionsAnswered: Number(r.questions_answered ?? 0),
+      totalTime: Number(r.total_time_seconds ?? 0),
+      penaltyTime: Number(r.penalty_time_seconds ?? 0),
+      dateAdded: r.date_added ? new Date(r.date_added).getTime() : null,
+      isTeacher: r.is_teacher ?? false,
+      isStudent: r.is_student ?? false,
+      stageReached: r.stage_reached ?? null
+    }));
+
+  // monthly should allow multiple entries per player — just sort
+  cachedMonthlyLeaderboard.sort((a, b) => {
+    if (b.questionsAnswered === a.questionsAnswered) return a.totalTime - b.totalTime;
+    return b.questionsAnswered - a.questionsAnswered;
+  });
+  cachedMonthlyFetchTime = now;
+}
+
 async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forceRefresh = false) {
-  // Backwards-compat: some callers pass (scope, true) expecting forceRefresh;
-  // if timeFilter is a boolean, treat it as forceRefresh and restore default timeFilter.
+  // Backwards-compat
   if (typeof timeFilter === "boolean") {
     forceRefresh = timeFilter;
     timeFilter = "monthly";
   }
-
-  // Normalize string variants (allow "all", "alltime", "all-time", "monthly", etc.)
+  // Normalize
   if (typeof timeFilter === "string") {
     timeFilter = timeFilter.trim().toLowerCase();
     if (timeFilter === "all" || timeFilter === "alltime" || timeFilter === "all-time") timeFilter = "alltime";
-    else if (timeFilter === "month" || timeFilter === "monthly" || timeFilter === "thismonth") timeFilter = "monthly";
     else timeFilter = "monthly";
+  } else timeFilter = "monthly";
+
+  lastLoadedTimeFilter = timeFilter;
+  // fetch appropriate cache
+  if (timeFilter === "alltime") {
+    await fetchAllTimeLeaderboard(!!forceRefresh);
+    const filtered = applyLeaderboardFilter(cachedAllTimeLeaderboard || [], scopeFilter);
+    cachedLeaderboardData = filtered;
+    cachedEmperorData = (cachedAllTimeLeaderboard || []).filter(d => d.isStudent === true);
+    renderLeaderboard(filtered);
+    return { data: filtered, error: null };
   } else {
-    // fallback default
-    timeFilter = "monthly";
-  }
-
-  // Debug inputs
-  console.debug("loadLeaderboard called:", { scopeFilter, timeFilter, forceRefresh });
-
-  try {
-    if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
-
-    // Build base query (apply scope filter server-side for efficiency)
-    let query = supabase.from("leaderboard").select("*").limit(5000);
-    if (scopeFilter === "students") query = query.eq("is_student", true);
-    else if (scopeFilter === "teachers") query = query.eq("is_teacher", true);
-
-    // Order to make results deterministic; we'll do filtering & reduction client-side
-    query = query.order("questions_answered", { ascending: false }).order("total_time_seconds", { ascending: true });
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("loadLeaderboard query error:", error);
-      if (lbStatus) lbStatus.textContent = "Error loading leaderboard";
-      return { data: null, error };
-    }
-
-    const rows = Array.isArray(data) ? data : [];
-    console.debug("loadLeaderboard: fetched rows:", rows.length);
-
-    // Normalize DB rows to the renderer format
-    const normalized = rows
-      .map(r => ({
-        raw: r,
-        playerName: r.player_name ?? r.playerName ?? "(unknown)",
-        questionsAnswered: Number(r.questions_answered ?? 0),
-        totalTime: Number(r.total_time_seconds ?? 0),
-        penaltyTime: Number(r.penalty_time_seconds ?? 0),
-        dateAdded: r.date_added ? new Date(r.date_added).getTime() : null,
-        isTeacher: !!r.is_teacher,
-        isStudent: !!r.is_student,
-        stageReached: r.stage_reached ?? null
-      }));
-
-    let outRows = [];
-
-    if (timeFilter === "monthly") {
-      // Calendar month/year match with current local time
-      const now = new Date();
-      const curMonth = now.getMonth();
-      const curYear = now.getFullYear();
-
-      outRows = normalized.filter(n => {
-        if (!n.dateAdded) return false;
-        const d = new Date(n.dateAdded);
-        return d.getMonth() === curMonth && d.getFullYear() === curYear;
-      });
-
-      // Sort monthly results
-      outRows.sort((a, b) => {
-        if (b.questionsAnswered === a.questionsAnswered)
-          return a.totalTime - b.totalTime;
-        return b.questionsAnswered - a.questionsAnswered;
-      });
-
-      console.debug("loadLeaderboard: monthly filtered rows:", outRows.length);
-    } else {
-      // alltime: reduce to best-per-player
-      const bestByPlayer = new Map();
-      for (const n of normalized) {
-        const key = (n.playerName || "").trim().toLowerCase();
-        const existing = bestByPlayer.get(key);
-        if (!existing) {
-          bestByPlayer.set(key, n);
-        } else {
-          // prefer higher questionsAnswered, then lower totalTime, then newer dateAdded
-          if (
-            n.questionsAnswered > existing.questionsAnswered ||
-            (n.questionsAnswered === existing.questionsAnswered && n.totalTime < existing.totalTime) ||
-            (n.questionsAnswered === existing.questionsAnswered && n.totalTime === existing.totalTime && (n.dateAdded || 0) > (existing.dateAdded || 0))
-          ) {
-            bestByPlayer.set(key, n);
-          }
-        }
-      }
-      outRows = Array.from(bestByPlayer.values());
-      // sort best-per-player
-      outRows.sort((a, b) => {
-        if (b.questionsAnswered === a.questionsAnswered)
-          return a.totalTime - b.totalTime;
-        return b.questionsAnswered - a.questionsAnswered;
-      });
-
-      console.debug("loadLeaderboard: alltime reduced rows:", outRows.length);
-    }
-
-    // Update cached data for other UI uses (store simplified objects expected elsewhere)
-    cachedLeaderboardData = outRows.map(r => ({
-      playerName: r.playerName,
-      questionsAnswered: r.questionsAnswered,
-      totalTime: r.totalTime,
-      penaltyTime: r.penaltyTime,
-      dateAdded: r.dateAdded,
-      isTeacher: r.isTeacher,
-      isStudent: r.isStudent,
-      stageReached: r.stageReached
-    }));
-    cachedEmperorData = cachedLeaderboardData.filter(d => d.isStudent === true);
-    lastLeaderboardFetchTime = Date.now();
-
-    // Render
-    try {
-      renderLeaderboard(cachedLeaderboardData);
-      if (lbStatus) lbStatus.textContent = "";
-    } catch (renderErr) {
-      console.error("renderLeaderboard failed:", renderErr);
-      if (lbStatus) lbStatus.textContent = "";
-    }
-
-    return { data: cachedLeaderboardData, error: null };
-  } catch (e) {
-    console.error("loadLeaderboard exception:", e);
-    if (lbStatus) lbStatus.textContent = "Error loading leaderboard";
-    return { data: null, error: e };
+    await fetchMonthlyLeaderboard(!!forceRefresh);
+    const filtered = applyLeaderboardFilter(cachedMonthlyLeaderboard || [], scopeFilter);
+    cachedLeaderboardData = filtered;
+    cachedEmperorData = (cachedMonthlyLeaderboard || []).filter(d => d.isStudent === true);
+    renderLeaderboard(filtered);
+    return { data: filtered, error: null };
   }
 }
 
@@ -467,20 +480,21 @@ async function insertLeaderboardRow(lbRow) {
   }
 }
 
-// Button wiring
+// Button wiring (student/teacher buttons should only filter the currently loaded cache)
 if (viewAllBtn) {
   viewAllBtn.addEventListener("click", () => {
-    loadLeaderboard("all", "alltime", true);
+    // do not force a re-fetch; reuse currently cached timeFilter (hotswap)
+    loadLeaderboard("all", lastLoadedTimeFilter, false);
   });
 }
 if (viewStudentsBtn) {
   viewStudentsBtn.addEventListener("click", () => {
-    loadLeaderboard("students", "alltime", true);
+    loadLeaderboard("students", lastLoadedTimeFilter, false);
   });
 }
 if (viewTeachersBtn) {
   viewTeachersBtn.addEventListener("click", () => {
-    loadLeaderboard("teachers", "alltime", true);
+    loadLeaderboard("teachers", lastLoadedTimeFilter, false);
   });
 }
 
