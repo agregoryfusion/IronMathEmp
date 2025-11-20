@@ -319,43 +319,47 @@ h1 { margin:18px 0 6px; color:var(--primary); }
   color: var(--accent2);
 }
 
-/* Settings panel fixed so it can show independently of other containers */
+/* Settings panel: center modal (replaces fixed top-right card) */
 .settings-panel {
   position: fixed;
-  top: 56px;
-  right: 12px;
-  width: 320px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 520px;
   max-width: calc(100% - 32px);
   background: var(--panel);
-  border-radius: 10px;
-  padding: 14px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.66);
   border: 1px solid #2a2f37;
   z-index: 1090;
   color: var(--text);
 }
 
-/* Hide most of the app while settings-mode is active, but keep title, version, toggle and panel */
-body.settings-mode #login-screen,
-body.settings-mode #emperor-screen,
-body.settings-mode #game-container,
-body.settings-mode #end-screen,
-body.settings-mode #leaderboardContainer,
-body.settings-mode #leaderboardButtons,
-body.settings-mode #leaderboardTimeButtons {
-  display: none !important;
+/* When settings-mode is active, keep the toggle visible but dim the background slightly */
+body.settings-mode::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 1088;
 }
 
-/* Ensure title and version remain visible in settings-mode */
-body.settings-mode h1,
-body.settings-mode #version {
-  display: block !important;
-  visibility: visible !important;
-}
-
-/* Ensure settings toggle & panel show in settings-mode */
-body.settings-mode .settings-toggle,
-body.settings-mode .settings-panel {
-  display: inline-flex !important;
+/* Keep the settings toggle visible top-right (so user can close); no other changes */
+.settings-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .12s ease, background .12s ease;
+  z-index: 1100;
 }
 

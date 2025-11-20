@@ -103,6 +103,10 @@ const settingsPanel = document.getElementById("settingsPanel");
 let settingsOpen = false;
 let _origTitle = document.querySelector("h1") ? document.querySelector("h1").textContent : "Fusion Fast Math";
 
+// new: keep initial color values when opening settings so we know if they changed
+let _initialBgColor = null;
+let _initialPrimaryColor = null;
+
 function getGearSVG() {
   return `
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -127,6 +131,16 @@ function openSettings() {
   const h1 = document.querySelector("h1");
   if (h1) h1.textContent = "Settings";
 
+  // capture initial color state (computed or stored)
+  _initialBgColor = getCSSVar('--bg') || localStorage.getItem("fm_bg_color") || "#0e0f12";
+  _initialPrimaryColor = getCSSVar('--primary') || localStorage.getItem("fm_primary_color") || "#1e90ff";
+
+  // Ensure pickers reflect current values (if elements exist)
+  const bgPick = document.getElementById("bgColorPicker");
+  const txtPick = document.getElementById("textColorPicker");
+  if (bgPick) bgPick.value = normalizeColorToHex(_initialBgColor) || "#0e0f12";
+  if (txtPick) txtPick.value = normalizeColorToHex(_initialPrimaryColor) || "#1e90ff";
+
   settingsPanel.setAttribute("aria-hidden", "false");
   settingsPanel.style.display = "block";
   settingsToggle.innerHTML = getCloseSVG();
@@ -134,8 +148,17 @@ function openSettings() {
   settingsOpen = true;
 }
 
-function closeSettings() {
+async function closeSettings() {
   if (!settingsPanel || !settingsToggle) return;
+
+  // read current picker values
+  const bgPick = document.getElementById("bgColorPicker");
+  const txtPick = document.getElementById("textColorPicker");
+  const newBg = bgPick ? bgPick.value : normalizeColorToHex(getCSSVar('--bg'));
+  const newPrimary = txtPick ? txtPick.value : normalizeColorToHex(getCSSVar('--primary'));
+
+  settingsPanel.setAttribute("aria-hidden", "true");
+  settingsPanel.style.display = "none";
 
   document.body.classList.remove("settings-mode");
 
@@ -143,11 +166,31 @@ function closeSettings() {
   const h1 = document.querySelector("h1");
   if (h1) h1.textContent = _origTitle || "Fusion Fast Math";
 
-  settingsPanel.setAttribute("aria-hidden", "true");
-  settingsPanel.style.display = "none";
   settingsToggle.innerHTML = getGearSVG();
   settingsToggle.setAttribute("aria-label", "Open settings");
   settingsOpen = false;
+
+  // If the user changed colors, persist them locally and to DB if signed in
+  const bgChanged = _initialBgColor && normalizeColorToHex(_initialBgColor) !== normalizeColorToHex(newBg);
+  const primaryChanged = _initialPrimaryColor && normalizeColorToHex(_initialPrimaryColor) !== normalizeColorToHex(newPrimary);
+
+  if (bgChanged || primaryChanged) {
+    // apply to CSS immediately
+    applyColorSettings(newBg || null, newPrimary || null, true);
+
+    // if signed in, persist to Supabase via backend.updateUserPreferences
+    const userId = window.currentUserId || null;
+    if (userId && backend && typeof backend.updateUserPreferences === "function") {
+      const prefs = {};
+      if (bgChanged && newBg) prefs.background_color = newBg;
+      if (primaryChanged && newPrimary) prefs.text_color = newPrimary;
+      try {
+        await backend.updateUserPreferences(userId, prefs);
+      } catch (e) {
+        console.warn("Failed to persist color prefs:", e);
+      }
+    }
+  }
 }
 
 function toggleSettings() {

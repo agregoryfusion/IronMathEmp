@@ -70,8 +70,32 @@ async function handleSignedIn(user) {
   FM.auth.isTeacher = isTeacher;
   FM.auth.isStudent = isStudent;
 
-  const userId = await backend.recordUserLogin(email, playerName);
-  window.currentUserId = userId;
+  // recordUserLogin now returns the user row (including optional pref fields)
+  const userRow = await backend.recordUserLogin(email, playerName);
+  if (userRow) {
+    window.currentUserId = userRow.user_id || userRow.id || null;
+
+    // If DB has stored preferences, apply them (and persist to localStorage for ui pickers)
+    try {
+      if (userRow.background_color) {
+        document.documentElement.style.setProperty('--bg', userRow.background_color);
+        localStorage.setItem("fm_bg_color", userRow.background_color);
+      }
+      if (userRow.text_color) {
+        document.documentElement.style.setProperty('--primary', userRow.text_color);
+        document.documentElement.style.setProperty('--accent', userRow.text_color);
+        localStorage.setItem("fm_primary_color", userRow.text_color);
+      }
+      // Also update color pickers if present in DOM
+      const bgPicker = document.getElementById("bgColorPicker");
+      const textPicker = document.getElementById("textColorPicker");
+      if (bgPicker && userRow.background_color) bgPicker.value = userRow.background_color;
+      if (textPicker && userRow.text_color) textPicker.value = userRow.text_color;
+    } catch (e) {
+      // ignore DOM timing issues
+      console.warn("Could not apply user color prefs:", e);
+    }
+  }
 
   if (loginScreen) loginScreen.style.display = "none";
   if (gameContainer) gameContainer.style.display = "none";
