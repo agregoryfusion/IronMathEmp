@@ -369,7 +369,7 @@ async function fetchMonthlyLeaderboard(forceRefresh = false) {
     return;
   }
 
-  cachedMonthlyLeaderboard = (data || [])
+  const rows = (data || [])
     .filter(r => !!r.player_name)
     .map(r => ({
       playerName: r.player_name,
@@ -382,11 +382,29 @@ async function fetchMonthlyLeaderboard(forceRefresh = false) {
       stageReached: r.stage_reached ?? null
     }));
 
-  // monthly should allow multiple entries per player — just sort
+  // reduce to best-per-player for the month (same logic as all-time)
+  const bestByKey = new Map();
+  for (const r of rows) {
+    const k = (r.playerName || "").trim().toLowerCase();
+    const existing = bestByKey.get(k);
+    if (!existing) bestByKey.set(k, r);
+    else {
+      if (
+        r.questionsAnswered > existing.questionsAnswered ||
+        (r.questionsAnswered === existing.questionsAnswered && r.totalTime < existing.totalTime) ||
+        (r.questionsAnswered === existing.questionsAnswered && r.totalTime === existing.totalTime && (r.dateAdded || 0) > (existing.dateAdded || 0))
+      ) {
+        bestByKey.set(k, r);
+      }
+    }
+  }
+
+  cachedMonthlyLeaderboard = Array.from(bestByKey.values());
   cachedMonthlyLeaderboard.sort((a, b) => {
     if (b.questionsAnswered === a.questionsAnswered) return a.totalTime - b.totalTime;
     return b.questionsAnswered - a.questionsAnswered;
   });
+
   cachedMonthlyFetchTime = now;
 }
 
