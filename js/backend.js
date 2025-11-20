@@ -389,6 +389,10 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
   } else timeFilter = "monthly";
 
   lastLoadedTimeFilter = timeFilter;
+
+  // Show loading status immediately
+  if (lbStatus) lbStatus.textContent = "Loading leaderboard...";
+
   // fetch appropriate cache
   if (timeFilter === "alltime") {
     await fetchAllTimeLeaderboard(!!forceRefresh);
@@ -396,6 +400,7 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
     cachedLeaderboardData = filtered;
     cachedEmperorData = (cachedAllTimeLeaderboard || []).filter(d => d.isStudent === true);
     renderLeaderboard(filtered);
+    if (lbStatus) lbStatus.textContent = "";
     return { data: filtered, error: null };
   } else {
     await fetchMonthlyLeaderboard(!!forceRefresh);
@@ -403,6 +408,7 @@ async function loadLeaderboard(scopeFilter = "all", timeFilter = "monthly", forc
     cachedLeaderboardData = filtered;
     cachedEmperorData = (cachedMonthlyLeaderboard || []).filter(d => d.isStudent === true);
     renderLeaderboard(filtered);
+    if (lbStatus) lbStatus.textContent = "";
     return { data: filtered, error: null };
   }
 }

@@ -3,40 +3,40 @@ const lbAllTimeBtn = document.getElementById("lbAllTimeBtn");
 const viewAllBtn = document.getElementById("viewAllBtn");
 const viewStudentsBtn = document.getElementById("viewStudentsBtn");
 const viewTeachersBtn = document.getElementById("viewTeachersBtn");
+const FM = (window.FastMath = window.FastMath || {});
+const backend = FM.backend || {};
 
 let currentScope = "all";
 let currentTime = "monthly";
 
 lbMonthlyBtn.addEventListener("click", () => {
   currentTime = "monthly";
-  lbMonthlyBtn.classList.add("active");
-  lbAllTimeBtn.classList.remove("active");
-  backend.loadLeaderboard(currentScope, currentTime, true);
+  // Request monthly leaderboard (force refresh)
+  backend.loadLeaderboard(currentScope === "all" ? "all" : currentScope, "monthly", true);
 });
 
 lbAllTimeBtn.addEventListener("click", () => {
   currentTime = "alltime";
-  lbAllTimeBtn.classList.add("active");
-  lbMonthlyBtn.classList.remove("active");
-  backend.loadLeaderboard(currentScope, currentTime, true);
+  // Request all-time leaderboard (force refresh)
+  backend.loadLeaderboard(currentScope === "all" ? "all" : currentScope, "alltime", true);
 });
 
 viewAllBtn.addEventListener("click", () => {
   currentScope = "all";
   highlightScopeButton("all");
-  backend.loadLeaderboard(currentScope, currentTime);
+  backend.loadLeaderboard("all", currentTime, false);
 });
 
 viewStudentsBtn.addEventListener("click", () => {
   currentScope = "students";
   highlightScopeButton("students");
-  backend.loadLeaderboard(currentScope, currentTime);
+  backend.loadLeaderboard("students", currentTime, false);
 });
 
 viewTeachersBtn.addEventListener("click", () => {
   currentScope = "teachers";
   highlightScopeButton("teachers");
-  backend.loadLeaderboard(currentScope, currentTime);
+  backend.loadLeaderboard("teachers", currentTime, false);
 });
 function highlightScopeButton(scope) {
   viewAllBtn.classList.remove("active");
