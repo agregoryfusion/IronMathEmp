@@ -260,6 +260,12 @@ function renderLeaderboard(data) {
   if (!lbBody) return;
   lbBody.innerHTML = "";
   let rank = 1;
+
+  // Determine current player's normalized key (fall back to empty)
+  const selfKey = (window.FastMath && window.FastMath.auth && window.FastMath.auth.playerName)
+    ? (window.FastMath.auth.playerName || "").trim().toLowerCase()
+    : "";
+
   for (const d of (data || []).slice(0, 100)) {
     const date = d.dateAdded ? new Date(d.dateAdded) : null;
     const mm = date ? String(date.getMonth() + 1).padStart(2, "0") : "--";
@@ -267,6 +273,15 @@ function renderLeaderboard(data) {
     const yyyy = date ? date.getFullYear() : "----";
 
     const tr = document.createElement("tr");
+
+    // If this row belongs to the currently signed-in player, add a marker class
+    const rowKey = (d.playerName || "").trim().toLowerCase();
+    if (selfKey && rowKey && rowKey === selfKey) {
+      tr.classList.add("lb-row-self");
+      // Optionally add .pulse to animate — remove/comment if undesired
+      // tr.classList.add("pulse");
+    }
+
     tr.innerHTML = `
       <td>${rank++}</td>
       <td>${U.escapeHtml ? U.escapeHtml(d.playerName || "???") : (d.playerName || "???")}</td>

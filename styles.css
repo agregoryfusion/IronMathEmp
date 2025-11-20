@@ -1,6 +1,9 @@
 /* Core theme */
 :root{
   --bg:#0e0f12; --text:#ffffff; --muted:#a8b0bb; --accent:#1e90ff; --accent2:#00bfff; --panel:#161a20; --input:#15181d;
+  --leaderboard-self-bg: linear-gradient(90deg, #fff8c6, #fff3a8); /* yellow-ish */
+  --leaderboard-self-text: #1a1a1a; /* dark text on yellow */
+  --leaderboard-self-glow: 0 0 18px rgba(255,230,120,0.55);
 }
 *{box-sizing:border-box}
 body{
@@ -262,5 +265,32 @@ h1{margin:18px 0 6px;color:var(--accent)}
   background: var(--accent2);
   box-shadow: 0 0 12px var(--accent2);
   transform: scale(1.05);
+}
+
+/* User's own row highlight (easy to tweak) */
+:root{
+  --leaderboard-self-bg: linear-gradient(90deg, #fff8c6, #fff3a8); /* yellow-ish */
+  --leaderboard-self-text: #1a1a1a; /* dark text on yellow */
+  --leaderboard-self-glow: 0 0 18px rgba(255,230,120,0.55);
+}
+
+/* Add a distinct style for the player's own row */
+#leaderboardContainer tr.lb-row-self td {
+  background: var(--leaderboard-self-bg);
+  color: var(--leaderboard-self-text);
+  font-weight: 700;
+  transition: box-shadow .25s, transform .12s;
+  box-shadow: var(--leaderboard-self-glow);
+  transform-origin: center;
+}
+
+/* Optional modest pulse to draw attention (toggle by adding .pulse to tr.lb-row-self) */
+#leaderboardContainer tr.lb-row-self.pulse td {
+  animation: lbSelfPulse 2.4s ease-in-out infinite;
+}
+@keyframes lbSelfPulse {
+  0%   { transform: scale(1); box-shadow: 0 0 12px rgba(255,230,120,0.45); }
+  50%  { transform: scale(1.02); box-shadow: 0 0 22px rgba(255,230,120,0.65); }
+  100% { transform: scale(1); box-shadow: 0 0 12px rgba(255,230,120,0.45); }
 }
 
