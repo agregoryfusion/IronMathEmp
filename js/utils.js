@@ -74,7 +74,7 @@ FM.utils = {
 // Set version text — robust to DOM timing
 (function setVersionSafely() {
   const setNow = () => {
-    const versionElement = document.getElementById("version");
+const versionElement = document.getElementById("version");
     if (versionElement) versionElement.textContent = `v${FM.GAME_VERSION}`;
   };
   // Try immediately

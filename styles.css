@@ -4,7 +4,6 @@
   --leaderboard-self-bg: linear-gradient(90deg, #fff8c6, #fff3a8); /* yellow-ish */
   --leaderboard-self-text: #1a1a1a; /* dark text on yellow */
   --leaderboard-self-glow: 0 0 18px rgba(255,230,120,0.55);
-  --primary: var(--accent); /* primary color used for title, version, leaderboard header and question */
 }
 *{box-sizing:border-box}
 body{
@@ -14,8 +13,12 @@ body{
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial;
   text-align:center
 }
-h1 { margin:18px 0 6px; color:var(--primary); }
-#version { color: var(--primary); font-size: 0.75em; margin-top: -6px; }
+h1{margin:18px 0 6px;color:var(--accent)}
+#version {
+  color: var(--accent);
+  font-size: 0.75em;
+  margin-top: -6px;
+}
 
 /* LOGIN */
 #login-screen{
@@ -120,8 +123,7 @@ h1 { margin:18px 0 6px; color:var(--primary); }
   margin-top:80px;
   margin-bottom:30px;
   min-height:1.2em;
-  transition:transform .05s;
-  color: var(--primary);
+  transition:transform .05s
 }
 #timerBar{
   width:70%;
@@ -213,7 +215,7 @@ h1 { margin:18px 0 6px; color:var(--primary); }
   text-align:center
 }
 #leaderboardContainer th{
-  color:var(--primary);
+  color:var(--accent);
   font-weight:600;
   border-bottom:2px solid #1e90ff33
 }
@@ -290,76 +292,5 @@ h1 { margin:18px 0 6px; color:var(--primary); }
   0%   { transform: scale(1); box-shadow: 0 0 12px rgba(255,230,120,0.45); }
   50%  { transform: scale(1.02); box-shadow: 0 0 22px rgba(255,230,120,0.65); }
   100% { transform: scale(1); box-shadow: 0 0 12px rgba(255,230,120,0.45); }
-}
-
-/* ensure end-screen can contain the top-right toggle */
-#end-screen {
-  position: relative;
-}
-
-/* Make settings toggle/panel fixed in the top-right so they remain accessible */
-.settings-toggle {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  background: transparent;
-  border: none;
-  color: var(--accent);
-  padding: 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform .12s ease, background .12s ease;
-  z-index: 1100;
-}
-.settings-toggle:hover {
-  transform: scale(1.05);
-  color: var(--accent2);
-}
-
-/* Settings panel: center modal (replaces fixed top-right card) */
-.settings-panel {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 520px;
-  max-width: calc(100% - 32px);
-  background: var(--panel);
-  border-radius: 12px;
-  padding: 18px;
-  box-shadow: 0 12px 48px rgba(0,0,0,0.66);
-  border: 1px solid #2a2f37;
-  z-index: 1090;
-  color: var(--text);
-}
-
-/* When settings-mode is active, keep the toggle visible but dim the background slightly */
-body.settings-mode::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.35);
-  z-index: 1088;
-}
-
-/* Keep the settings toggle visible top-right (so user can close); no other changes */
-.settings-toggle {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  background: transparent;
-  border: none;
-  color: var(--accent);
-  padding: 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform .12s ease, background .12s ease;
-  z-index: 1100;
 }
 

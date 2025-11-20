@@ -43,26 +43,22 @@ async function recordUserLogin(email, name) {
     console.error("User lookup error:", findErr);
   }
 
-  let userRow = null;
+  let userId = null;
 
   if (existingUser) {
-    // keep existing row, but update email/last_login_at
+    userId = existingUser.user_id;
     const updatedEmail = existingUser.email || email;
-    const { data: updated, error: updateErr } = await supabase
+
+    const { error: updateErr } = await supabase
       .from("users")
       .update({
         email: updatedEmail,
         last_login_at: nowIso
       })
-      .eq("user_id", existingUser.user_id)
-      .select()
-      .maybeSingle();
+      .eq("user_id", userId);
 
     if (updateErr) {
       console.error("User update failed:", updateErr);
-      userRow = existingUser;
-    } else {
-      userRow = updated || existingUser;
     }
   } else {
     const { data: inserted, error: insertErr } = await supabase
@@ -78,15 +74,15 @@ async function recordUserLogin(email, name) {
     if (insertErr) {
       console.error("User insert failed:", insertErr);
     } else {
-      userRow = inserted;
+      userId = inserted.user_id;
     }
   }
 
-  if (userRow && userRow.user_id !== undefined && userRow.user_id !== null) {
+  if (userId !== null) {
     const { error: loginErr } = await supabase
       .from("logins")
       .insert({
-        user_id: userRow.user_id,
+        user_id: userId,
         name,
         login_at: nowIso
       });
@@ -96,8 +92,7 @@ async function recordUserLogin(email, name) {
     }
   }
 
-  // Return the full user row (may be null if insert/update failed)
-  return userRow;
+  return userId;
 }
 
 async function upsertLeaderboardEntry({
@@ -524,28 +519,6 @@ async function insertLeaderboardRow(lbRow) {
   }
 }
 
-// new helper: update user preferences (background_color, text_color)
-async function updateUserPreferences(userId, prefs = {}) {
-  if (!userId) return { data: null, error: new Error("Missing userId") };
-  try {
-    const { data, error } = await supabase
-      .from("users")
-      .update(prefs)
-      .eq("user_id", userId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error("updateUserPreferences failed:", error);
-      return { data: null, error };
-    }
-    return { data, error: null };
-  } catch (e) {
-    console.error("updateUserPreferences exception:", e);
-    return { data: null, error: e };
-  }
-}
-
 // Button wiring (student/teacher buttons should only filter the currently loaded cache)
 if (viewAllBtn) {
   viewAllBtn.addEventListener("click", () => {
@@ -577,6 +550,5 @@ FM.backend = {
   // new helpers
   insertSessionRow,
   insertQuestionRows,
-  insertLeaderboardRow,
-  updateUserPreferences
+  insertLeaderboardRow
 };
