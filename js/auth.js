@@ -5,7 +5,7 @@ import "./game.js";
 import "./ui.js";
 const FM = (window.FastMath = window.FastMath || {});
 const U = FM.utils;
-const backend = FM.backend;
+// const backend = FM.backend;  // remove static snapshot to avoid stale/undefined reference
 
 // DOM elements
 const loginScreen = document.getElementById("login-screen");
@@ -46,7 +46,7 @@ const auth = getAuth(app);
 const provider = new OAuthProvider("microsoft.com");
 
 // diagnostic at module load
-console.log("[auth] module loaded. auth:", !!auth, "provider:", !!provider);
+console.log("[auth] module loaded. auth:", !!auth, "provider:", !!provider, "FM.backend=", !!FM.backend);
 
 setPersistence(auth, browserLocalPersistence).catch((err) => {
   console.warn("[auth] setPersistence failed:", err);
@@ -96,19 +96,70 @@ async function handleSignedIn(user) {
   FM.auth.isTeacher = isTeacher;
   FM.auth.isStudent = isStudent;
 
-  const userId = await backend.recordUserLogin(email, playerName);
-  window.currentUserId = userId;
+  // Use a fresh backend reference at runtime (may have been attached after this module started)
+  const backendNow = (window.FastMath && window.FastMath.backend) ? window.FastMath.backend : null;
+  console.log("[auth] backend available:", !!backendNow);
+
+  let userRowOrId = null;
+  try {
+    if (backendNow && typeof backendNow.recordUserLogin === "function") {
+      userRowOrId = await backendNow.recordUserLogin(email, playerName);
+      console.log("[auth] recordUserLogin returned:", userRowOrId);
+    } else {
+      console.warn("[auth] backend.recordUserLogin not available; skipping server login.");
+    }
+  } catch (e) {
+    console.warn("[auth] recordUserLogin call failed:", e);
+  }
+
+  // Normalize returned value: could be a full user row object or just a numeric id
+  let resolvedUserId = null;
+  let userRow = null;
+  if (userRowOrId && typeof userRowOrId === "object") {
+    userRow = userRowOrId;
+    resolvedUserId = userRow.user_id ?? userRow.id ?? null;
+  } else if (typeof userRowOrId === "number" || (typeof userRowOrId === "string" && /^\d+$/.test(userRowOrId))) {
+    resolvedUserId = Number(userRowOrId);
+  }
+
+  window.currentUserId = resolvedUserId || null;
+
+  // If we received a user row with stored prefs, apply them
+  if (userRow) {
+    try {
+      if (userRow.background_color) {
+        document.documentElement.style.setProperty('--bg', userRow.background_color);
+        localStorage.setItem("fm_bg_color", userRow.background_color);
+      }
+      if (userRow.text_color) {
+        document.documentElement.style.setProperty('--primary', userRow.text_color);
+        document.documentElement.style.setProperty('--accent', userRow.text_color);
+        localStorage.setItem("fm_primary_color", userRow.text_color);
+      }
+      const bgPicker = document.getElementById("bgColorPicker");
+      const textPicker = document.getElementById("textColorPicker");
+      if (bgPicker && userRow.background_color) bgPicker.value = userRow.background_color;
+      if (textPicker && userRow.text_color) textPicker.value = userRow.text_color;
+    } catch (e) {
+      console.warn("[auth] Could not apply user color prefs:", e);
+    }
+  }
 
   if (loginScreen) loginScreen.style.display = "none";
   if (gameContainer) gameContainer.style.display = "none";
   if (endScreen) endScreen.style.display = "none";
 
-  // show or hide Data button for teachers
+  // safe call to leaderboard fetch (use runtime backend)
   try {
-    if (dataBtn) dataBtn.style.display = isTeacher ? "inline-block" : "none";
-  } catch (e) { /* ignore timing */ }
+    if (backendNow && typeof backendNow.fetchAndCacheLeaderboard === "function") {
+      await backendNow.fetchAndCacheLeaderboard(true);
+    } else {
+      console.warn("[auth] backend.fetchAndCacheLeaderboard not available at sign-in.");
+    }
+  } catch (e) {
+    console.warn("[auth] fetchAndCacheLeaderboard failed:", e);
+  }
 
-  await backend.fetchAndCacheLeaderboard(true);
   showEmperor();
 }
 
