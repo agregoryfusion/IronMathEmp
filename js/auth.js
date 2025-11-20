@@ -164,7 +164,12 @@ async function handleSignedIn(user) {
 }
 
 function showEmperor() {
-  const top = backend.getEmperorTopStudent();
+  // resolve backend at runtime (may be attached after module init)
+  const backendNow = (window.FastMath && window.FastMath.backend) ? window.FastMath.backend : null;
+  const top = backendNow && typeof backendNow.getEmperorTopStudent === "function"
+    ? backendNow.getEmperorTopStudent()
+    : null;
+
   if (top) {
     emperorName.textContent = top.playerName;
     emperorScore.textContent = `${top.questionsAnswered} Correct`;
@@ -173,7 +178,7 @@ function showEmperor() {
     emperorScore.textContent = "—";
   }
 
-  emperorScreen.style.display = "block";
+  if (emperorScreen) emperorScreen.style.display = "block";
   if (gameContainer) gameContainer.style.display = "none";
 }
 
