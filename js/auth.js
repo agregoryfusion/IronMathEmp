@@ -41,7 +41,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new OAuthProvider("microsoft.com");
-await setPersistence(auth, browserLocalPersistence);
+
+// Replace top-level await with a non-blocking call and graceful fallback
+setPersistence(auth, browserLocalPersistence).catch((err) => {
+  console.warn("Could not set Firebase auth persistence; continuing without persistent session.", err);
+});
 
 FM.auth = {
   playerName: "Player",
@@ -137,6 +141,7 @@ onAuthStateChanged(auth, async (user) => {
 
 if (loginBtn) {
   loginBtn.addEventListener("click", async ()=>{
+    console.log("Login button clicked - attempting sign-in");
     try {
       const result = await signInWithPopup(auth, provider);
       await handleSignedIn(result.user);

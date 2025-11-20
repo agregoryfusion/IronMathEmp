@@ -71,8 +71,16 @@ FM.utils = {
   sampleTrunc
 };
 
-// Set version text
-const versionElement = document.getElementById("version");
-if (versionElement) {
-  versionElement.textContent = `v${FM.GAME_VERSION}`;
-}
+// Set version text — robust to DOM timing
+(function setVersionSafely() {
+  const setNow = () => {
+    const versionElement = document.getElementById("version");
+    if (versionElement) versionElement.textContent = `v${FM.GAME_VERSION}`;
+  };
+  // Try immediately
+  setNow();
+  // Also ensure it is set once DOM is ready (in case module executed earlier)
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", setNow, { once: true });
+  }
+})();
