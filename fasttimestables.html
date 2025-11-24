@@ -1,0 +1,90 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Times Tables</title>
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase JS (v2) for backend/leaderboard -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="game-topbar">
+    <a class="back-link" href="index.html">← Apps</a>
+    <span class="pill pill-ghost" id="version"></span>
+  </div>
+
+  <h1>Times Tables</h1>
+
+  <!-- Sign-In Screen -->
+  <div id="login-screen">
+    <p class="note" style="color:#c9d2db">
+      Please sign in with your Microsoft account to continue.
+    </p>
+    <button id="loginBtn">Sign in with Microsoft</button>
+    <div id="loginStatus"></div>
+  </div>
+
+  <!-- Emperor Screen -->
+  <div id="emperor-screen">
+    <h2 class="emp-line">The Current Emperor</h2>
+    <h2 class="emp-line">Of Multiplication Is:</h2>
+    <h1 id="emperorName" class="emp-name">...</h1>
+
+    <h2 class="emp-line">With A Score Of:</h2>
+    <h1 id="emperorScore" class="emp-score">...</h1>
+
+    <button id="playBtn">Play</button>
+  </div>
+
+  <!-- Game -->
+  <div id="game-container">
+    <div id="question"></div>
+    <div id="timerBar"><div id="timerFill"></div></div>
+    <input id="answer" type="text" autocomplete="off" inputmode="numeric" placeholder="?" />
+    <div id="stage-info"></div>
+  </div>
+
+  <!-- End Screen -->
+  <div id="end-screen">
+    <h3>Game Over</h3>
+
+    <p id="end-questions">Questions answered: ...</p>
+    <p id="end-penalty">Total penalty time: ... s</p>
+    <p id="end-total">Total time: ... s (<span id="end-with-penalty">...</span> s with penalties)</p>
+    <p id="end-avg">Avg time/question: ... s (<span id="end-avg-with-penalty">...</span> s with penalties)</p>
+
+    <p id="session-id"></p>
+    <p id="saved-status"></p>
+
+    <button id="restartBtn">Play Again</button>
+    <div id="leaderboardTimeButtons">
+      <button id="lbMonthlyBtn" class="active">Monthly</button>
+      <button id="lbAllTimeBtn">All-Time</button>
+    </div>
+
+    <div id="leaderboardButtons">
+      <button id="viewAllBtn">Everyone</button>
+      <button id="viewStudentsBtn">Students</button>
+      <button id="viewTeachersBtn">Teachers</button>
+    </div>
+
+    <div id="leaderboardContainer">
+      <p id="leaderboardStatus"></p>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Player</th><th>Questions</th><th>Time (s)</th><th>Date</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Entry point: auth imports utils, backend, game -->
+  <script type="module" src="js/auth.js"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-// auth.js - entry point: Firebase + emperor + start game
+﻿// auth.js - entry point: Firebase + emperor + start game
 import "./utils.js";
 import "./backend.js";
 import "./game.js";
@@ -87,8 +87,8 @@ function showEmperor() {
     emperorName.textContent = top.playerName;
     emperorScore.textContent = `${top.questionsAnswered} Correct`;
   } else {
-    emperorName.textContent = "—";
-    emperorScore.textContent = "—";
+    emperorName.textContent = "...";
+    emperorScore.textContent = "...";
   }
 
   emperorScreen.style.display = "block";
