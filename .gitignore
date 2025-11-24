@@ -1,0 +1,14 @@
+# Build outputs
+bin/
+obj/
+
+# IDE artifacts
+*.user
+*.suo
+*.userprefs
+.vscode/
+
+# ASP.NET https dev certs
+**/Properties/launchSettings.json
+*.pfx
+*.p12
