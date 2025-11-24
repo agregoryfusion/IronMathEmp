@@ -30,11 +30,6 @@ let cachedMonthlyFetchTime = 0;
 // Track last requested timeFilter so view buttons can reuse the same cache
 let lastLoadedTimeFilter = "monthly";
 
-// NEW: questions cache & fetch helper (loads the questions table once and normalizes)
-let cachedQuestions = null;
-let cachedQuestionsFetchTime = 0;
-const QUESTIONS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
 async function recordUserLogin(email, name) {
   const nowIso = new Date().toISOString();
 
@@ -541,149 +536,36 @@ async function insertLeaderboardRow(lbRow) {
   }
 }
 
-// NEW: questions fetcher (keyset pagination, falls back to ranged offset pagination)
-async function fetchAndCacheQuestions(forceRefresh = false) {
-  const now = Date.now();
-  if (!forceRefresh && cachedQuestions && (now - cachedQuestionsFetchTime) < QUESTIONS_CACHE_DURATION) {
-    return cachedQuestions;
-  }
-  try {
-    const pageSize = 1000; // reasonable chunk size
-    let allRows = [];
-
-    // First page (offset) to sample columns and initial data
-    let { data: firstPage, error: firstErr } = await supabase
-      .from("questions")
-      .select("*")
-      .range(0, pageSize - 1);
-
-    if (firstErr) {
-      console.error("Questions table initial fetch failed:", firstErr);
-      return null;
-    }
-    if (!firstPage || firstPage.length === 0) {
-      cachedQuestions = [];
-      cachedQuestionsFetchTime = Date.now();
-      console.log("fetchAndCacheQuestions: no rows");
-      return cachedQuestions;
-    }
-
-    allRows = allRows.concat(firstPage);
-
-    // If first page is smaller than pageSize, we already have everything
-    if (firstPage.length < pageSize) {
-      console.log("fetchAndCacheQuestions: fetched single page rows=", allRows.length);
-    } else {
-      // Try to detect a numeric/lexical id key for keyset pagination
-      const sample = firstPage[0] || {};
-      const idCandidates = ['id', 'question_id', 'questionid', 'qid', 'row_id', 'created_at', 'date_added'];
-      const idKey = idCandidates.find(k => Object.prototype.hasOwnProperty.call(sample, k));
-
-      let usedKeyset = false;
-
-      if (idKey) {
-        // Use keyset pagination using gt on the detected idKey (works even if server enforces row caps)
-        let lastSeen = firstPage[firstPage.length - 1][idKey];
-        if (lastSeen === undefined || lastSeen === null) {
-          // fallback to offset paging if value missing
-          console.warn("fetchAndCacheQuestions: detected idKey but lastSeen is null; falling back to ranged paging", idKey);
-        } else {
-          usedKeyset = true;
-          while (true) {
-            const { data: page, error: pageErr } = await supabase
-              .from("questions")
-              .select("*")
-              .order(idKey, { ascending: true })
-              .gt(idKey, lastSeen)
-              .limit(pageSize);
-
-            if (pageErr) {
-              console.error("Questions table keyset fetch failed:", pageErr);
-              break;
-            }
-            if (!page || page.length === 0) break;
-            allRows = allRows.concat(page);
-            lastSeen = page[page.length - 1][idKey];
-            if (page.length < pageSize) break;
-          }
-        }
-      }
-
-      // If keyset not used (no suitable idKey or fallback), use offset paging
-      if (!usedKeyset) {
-        let offset = pageSize;
-        while (true) {
-          const { data: page, error: pageErr } = await supabase
-            .from("questions")
-            .select("*")
-            .range(offset, offset + pageSize - 1);
-
-          if (pageErr) {
-            console.error("Questions table ranged fetch failed:", pageErr);
-            break;
-          }
-          if (!page || page.length === 0) break;
-          allRows = allRows.concat(page);
-          if (page.length < pageSize) break;
-          offset += pageSize;
-        }
-      }
-
-      console.log("fetchAndCacheQuestions: fetched rows=", allRows.length);
-    }
-
-    // Normalize rows to the shape the data page expects
-    const rows = (allRows || []).map(r => {
-      // helper to parse date fields
-      const parseDateField = (v) => {
-        if (v == null) return null;
-        const n = Number(v);
-        if (Number.isFinite(n)) {
-          // if looks like ms (>= 1e12) use as-is; if seconds (<= 1e10) convert to ms
-          if (n > 1e12) return Math.trunc(n);
-          if (n > 1e9) return Math.trunc(n * 1000);
-          return Math.trunc(n * 1000);
-        }
-        const t = Date.parse(String(v));
-        return Number.isFinite(t) ? t : null;
-      };
-
-      const aVal = Number(r.a ?? r.A ?? r.a_val ?? r.a_value);
-      const bVal = Number(r.b ?? r.B ?? r.b_val ?? r.b_value);
-
-      const dateField = r.date_added ?? r.dateAdded ?? r.created_at ?? r.date;
-      const dateMs = parseDateField(dateField);
-
-      const mistakes = Number(r.mistakes ?? r.mistake_count ?? 0) || 0;
-
-      const rawSuccess = r.success ?? r.succeeded ?? r.is_success;
-      const success = (typeof rawSuccess === 'boolean') ? rawSuccess : String(rawSuccess).toLowerCase() === 'true';
-
-      const timeTaken = Number(r.time_taken ?? r.timeTaken ?? r.duration ?? 0) || 0;
-
-      const playerName = (r.player_name ?? r.playerName ?? r.name ?? r.user ?? "").toString().trim();
-
-      return {
-        a: Number.isFinite(aVal) ? Math.trunc(aVal) : null,
-        b: Number.isFinite(bVal) ? Math.trunc(bVal) : null,
-        dateMs,
-        mistakes,
-        success,
-        timeTaken,
-        playerName
-      };
-    });
-
-    cachedQuestions = rows;
-    cachedQuestionsFetchTime = Date.now();
-    console.log("fetchAndCacheQuestions: normalized rows=", cachedQuestions.length);
-    return cachedQuestions;
-  } catch (e) {
-    console.error("fetchAndCacheQuestions exception:", e);
-    return null;
-  }
+// Button wiring (student/teacher buttons should only filter the currently loaded cache)
+if (viewAllBtn) {
+  viewAllBtn.addEventListener("click", () => {
+    // do not force a re-fetch; reuse currently cached timeFilter (hotswap)
+    loadLeaderboard("all", lastLoadedTimeFilter, false);
+  });
+}
+if (viewStudentsBtn) {
+  viewStudentsBtn.addEventListener("click", () => {
+    loadLeaderboard("students", lastLoadedTimeFilter, false);
+  });
+}
+if (viewTeachersBtn) {
+  viewTeachersBtn.addEventListener("click", () => {
+    loadLeaderboard("teachers", lastLoadedTimeFilter, false);
+  });
 }
 
-function getCachedQuestions() {
-  return cachedQuestions || [];
-}
+// Expose in namespace
+FM.backend = {
+  supabase,
+  recordUserLogin,
+  upsertLeaderboardEntry,
+  updateCachedLeaderboardWithNewScore,
+  fetchAndCacheLeaderboard,
+  loadLeaderboard,
+  toggleLeaderboard,
+  getEmperorTopStudent,
+  // new helpers
+  insertSessionRow,
+  insertQuestionRows,
+  insertLeaderboardRow
+};
