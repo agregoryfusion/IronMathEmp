@@ -7,11 +7,7 @@ const FM = (window.FastMath = window.FastMath || {});
 const U = FM.utils;
 const backend = FM.backend;
 
-// DOM elements
-const loginScreen = document.getElementById("login-screen");
-const loginBtn = document.getElementById("loginBtn");
-const loginStatus = document.getElementById("loginStatus");
-
+const loadingScreen = document.getElementById("loading-screen");
 const emperorScreen = document.getElementById("emperor-screen");
 const emperorName = document.getElementById("emperorName");
 const emperorScore = document.getElementById("emperorScore");
@@ -23,8 +19,10 @@ const endScreen = document.getElementById("end-screen");
 // Firebase imports
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
 import {
-  getAuth, OAuthProvider, signInWithPopup,
-  setPersistence, browserLocalPersistence, onAuthStateChanged
+  getAuth,
+  setPersistence,
+  browserLocalPersistence,
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
 // Firebase config
@@ -40,7 +38,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const provider = new OAuthProvider("microsoft.com");
 await setPersistence(auth, browserLocalPersistence);
 
 FM.auth = {
@@ -49,6 +46,13 @@ FM.auth = {
   isTeacher: false,
   isStudent: false
 };
+
+function showLoading() {
+  if (loadingScreen) loadingScreen.style.display = "flex";
+  if (emperorScreen) emperorScreen.style.display = "none";
+  if (gameContainer) gameContainer.style.display = "none";
+  if (endScreen) endScreen.style.display = "none";
+}
 
 async function handleSignedIn(user) {
   const email = user.email?.toLowerCase() || "";
@@ -70,14 +74,18 @@ async function handleSignedIn(user) {
   FM.auth.isTeacher = isTeacher;
   FM.auth.isStudent = isStudent;
 
-  const userId = await backend.recordUserLogin(email, playerName);
-  window.currentUserId = userId;
+  showLoading();
 
-  if (loginScreen) loginScreen.style.display = "none";
-  if (gameContainer) gameContainer.style.display = "none";
-  if (endScreen) endScreen.style.display = "none";
+  try {
+    const [userId] = await Promise.all([
+      backend.recordUserLogin(email, playerName),
+      backend.fetchAndCacheLeaderboard(true)
+    ]);
+    window.currentUserId = userId;
+  } catch (err) {
+    console.error("Initial load failed:", err);
+  }
 
-  await backend.fetchAndCacheLeaderboard(true);
   showEmperor();
 }
 
@@ -91,6 +99,7 @@ function showEmperor() {
     emperorScore.textContent = "...";
   }
 
+  if (loadingScreen) loadingScreen.style.display = "none";
   emperorScreen.style.display = "block";
   if (gameContainer) gameContainer.style.display = "none";
 }
@@ -104,26 +113,13 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     await handleSignedIn(user);
   } else {
+    // Sign-in now happens on the home page; send unauthenticated users back there.
     if (emperorScreen) emperorScreen.style.display = "none";
     if (gameContainer) gameContainer.style.display = "none";
     if (endScreen) endScreen.style.display = "none";
-    if (loginScreen) loginScreen.style.display = "flex";
+    window.location.href = "index.html";
   }
 });
-
-if (loginBtn) {
-  loginBtn.addEventListener("click", async ()=>{
-    try {
-      const result = await signInWithPopup(auth, provider);
-      await handleSignedIn(result.user);
-    } catch(e) {
-      console.error("Sign-in error:", e);
-      if (loginStatus) {
-        loginStatus.textContent = "Sign-in failed: " + (e?.message || e);
-      }
-    }
-  });
-}
 
 if (playBtn) {
   playBtn.addEventListener("click", ()=>{
