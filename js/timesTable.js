@@ -1,4 +1,4 @@
-// game.js - core game logic
+// timesTable.js - Times Table game logic
 const FM = (window.FastMath = window.FastMath || {});
 const U = FM.utils || {};
 const backend = FM.backend;
@@ -158,7 +158,7 @@ function nextQuestion(){
   current = q;
   mistakesThisQuestion = 0;
 
-  questionEl.textContent = `${q.a} × ${q.b}`;
+  questionEl.textContent = `${q.a} x ${q.b}`;
   answerEl.value = "";
   answerEl.focus();
   stageInfo.textContent = `Stage ${stage}`;
@@ -402,7 +402,7 @@ async function uploadSession(totalTrue){
     };
     backend.updateCachedLeaderboardWithNewScore(cacheEntry);
     if (s) {
-      s.textContent = "Saved ✓";
+      s.textContent = "Saved!";
       s.style.color = "#7fdca2";
     }
   }catch(e){
@@ -423,7 +423,8 @@ if (restartBtn) {
   });
 }
 
-// Expose
-FM.game = {
+// Expose under a game-specific namespace; keep backward compatibility
+FM.timesTableGame = {
   startGame
 };
+FM.game = FM.timesTableGame;

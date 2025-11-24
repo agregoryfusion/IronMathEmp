@@ -1,7 +1,7 @@
 ﻿// auth.js - entry point: Firebase + emperor + start game
 import "./utils.js";
 import "./backend.js";
-import "./game.js";
+import "./timesTable.js";
 import "./ui.js";
 const FM = (window.FastMath = window.FastMath || {});
 const U = FM.utils;
@@ -124,6 +124,6 @@ onAuthStateChanged(auth, async (user) => {
 if (playBtn) {
   playBtn.addEventListener("click", ()=>{
     emperorScreen.style.display = "none";
-    FM.game.startGame();
+    (FM.timesTableGame || FM.game).startGame();
   });
 }
